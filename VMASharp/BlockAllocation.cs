@@ -71,7 +71,7 @@ namespace VMASharp
                 }
 
                 this.Block.Unmap(mapRefCount);
-                block.Map(mapRefCount, out _);
+                block.Map(mapRefCount);
             }
 
             this.Block = block;

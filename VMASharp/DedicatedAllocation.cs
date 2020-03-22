@@ -12,8 +12,10 @@ namespace VMASharp
         internal DeviceMemory memory;
         internal IntPtr mappedData;
 
-        public DedicatedAllocation(VulkanMemoryAllocator allocator, int currentFrameIndex, uint memTypeIndex) : base(allocator, currentFrameIndex, memTypeIndex)
+        public DedicatedAllocation(VulkanMemoryAllocator allocator, int memTypeIndex, DeviceMemory memory, SuballocationType suballocType, IntPtr mappedData, long size) : base(allocator, memTypeIndex, size)
         {
+            this.memory = memory;
+            this.mappedData = mappedData;
         }
 
         public override DeviceMemory Memory => this.memory;
@@ -76,6 +78,20 @@ namespace VMASharp
             {
                 throw new InvalidOperationException("Unmapping dedicated allocation not previously mapped");
             }
+        }
+
+        public void CalcStatsInfo(out StatInfo stats)
+        {
+            StatInfo.Init(out stats);
+            stats.BlockCount = 1;
+            stats.AllocationCount = 1;
+            stats.UsedBytes = this.Size;
+            stats.AllocationSizeMin = stats.AllocationSizeMax = this.Size;
+        }
+
+        public override Result BindImageMemory(Image image, long allocationLocalOffset = 0, IntPtr pNext = default)
+        {
+            throw new NotImplementedException();
         }
     }
 }

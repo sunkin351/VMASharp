@@ -26,7 +26,7 @@ namespace VMASharp
 
     internal class CurrentBudgetData
     {
-        public readonly AllocationBudget[] BudgetData = new AllocationBudget[Vk.MaxMemoryHeaps];
+        public readonly InternalBudgetStruct[] BudgetData = new InternalBudgetStruct[Vk.MaxMemoryHeaps];
         public readonly ReaderWriterLockSlim BudgetMutex = new ReaderWriterLockSlim();
         public int OperationsSinceBudgetFetch;
 
@@ -47,13 +47,22 @@ namespace VMASharp
 
         public void RemoveAllocation(int heapIndex, long allocationSize)
         {
-            ref AllocationBudget heap = ref BudgetData[heapIndex];
+            ref InternalBudgetStruct heap = ref BudgetData[heapIndex];
 
             Debug.Assert(heap.AllocationBytes >= allocationSize);
 
             Interlocked.Add(ref heap.AllocationBytes, -allocationSize); //Subtraction
 
             Interlocked.Increment(ref this.OperationsSinceBudgetFetch);
+        }
+
+        internal struct InternalBudgetStruct
+        {
+            public long BlockBytes;
+            public long AllocationBytes;
+            public long VulkanUsage;
+            public long VulkanBudget;
+            public long BlockBytesAtBudgetFetch;
         }
     }
 }

@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Diagnostics;
+using Silk.NET.Vulkan;
 
 namespace VMASharp
 {
@@ -61,11 +59,36 @@ namespace VMASharp
         public readonly StatInfo[] MemoryHeap;
         public StatInfo Total;
 
-        public Stats(StatInfo[] memoryTypes, StatInfo[] memoryHeaps, in StatInfo total)
+        internal Stats(StatInfo[] memoryTypes, StatInfo[] memoryHeaps, in StatInfo total)
         {
             MemoryType = memoryTypes;
             MemoryHeap = memoryHeaps;
             Total = total;
+        }
+
+        internal Stats()
+        {
+            StatInfo.Init(out StatInfo total);
+
+            MemoryType = new StatInfo[Vk.MaxMemoryTypes];
+            MemoryHeap = new StatInfo[Vk.MaxMemoryHeaps];
+
+            for (int i = 0; i < Vk.MaxMemoryTypes; ++i)
+                StatInfo.Init(out MemoryType[i]);
+
+            for (int i = 0; i < Vk.MaxMemoryHeaps; ++i)
+                StatInfo.Init(out MemoryHeap[i]);
+        }
+
+        internal void PostProcess()
+        {
+            StatInfo.PostProcessCalcStatInfo(ref this.Total);
+
+            for (int i = 0; i < Vk.MaxMemoryTypes; ++i)
+                StatInfo.PostProcessCalcStatInfo(ref this.MemoryType[i]);
+
+            for (int i = 0; i < Vk.MaxMemoryHeaps; ++i)
+                StatInfo.PostProcessCalcStatInfo(ref this.MemoryHeap[i]);
         }
     }
 

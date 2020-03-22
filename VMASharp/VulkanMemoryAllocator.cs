@@ -62,7 +62,7 @@ namespace VMASharp
 
         private readonly ReaderWriterLockSlim PoolsMutex = new ReaderWriterLockSlim();
         private readonly List<VulkanMemoryPool> Pools = new List<VulkanMemoryPool>();
-        private uint NextPoolID;
+        internal uint NextPoolID;
 
         internal CurrentBudgetData Budget = new CurrentBudgetData();
 
@@ -227,11 +227,6 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public Stats CalculateStats()
-        {
-            throw new NotImplementedException();
-        }
-
         public int? FindMemoryTypeIndex(uint memoryTypeBits, in AllocationCreateInfo allocInfo)
         {
             memoryTypeBits &= this.GlobalMemoryTypeBits;
@@ -320,63 +315,23 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public Result CreatePool(in AllocationPoolCreateInfo poolInfo, out VulkanMemoryPool pool)
-        {
-            throw new NotImplementedException();
-        }
-
         public Result AllocateMemory(in MemoryRequirements requirements, in AllocationCreateInfo createInfo, out Allocation allocInfo)
         {
             throw new NotImplementedException();
         }
 
-        public Result AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo, out Allocation? allocation)
+        public Allocation AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo)
         {
             this.GetBufferMemoryRequirements(buffer, out MemoryRequirements memReq, out bool requireDedicatedAlloc, out bool prefersDedicatedAlloc);
 
-            return this.AllocateMemory(in memReq, requireDedicatedAlloc, prefersDedicatedAlloc, buffer, default, in createInfo, SuballocationType.Buffer, out allocation);
+            return this.AllocateMemory(in memReq, requireDedicatedAlloc, prefersDedicatedAlloc, buffer, default, in createInfo, SuballocationType.Buffer);
         }
 
-        public Result AllocateMemoryForImage(Image image, in AllocationCreateInfo createInfo, out Allocation allocation)
+        public Allocation AllocateMemoryForImage(Image image, in AllocationCreateInfo createInfo)
         {
             this.GetImageMemoryRequirements(image, out var memReq, out bool requireDedicatedAlloc, out bool preferDedicatedAlloc);
 
-            return this.AllocateMemory(in memReq, requireDedicatedAlloc, preferDedicatedAlloc, default, image, in createInfo, SuballocationType.Image_Unknown, out allocation);
-        }
-
-        public void FreeMemory(Allocation allocation)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Allocation GetAllocationInfo(IntPtr allocation)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool TouchAllocation(IntPtr allocation)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Result MapMemory(IntPtr allocation, out IntPtr mappedPointer)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void UnmapMemory(IntPtr allocation)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void FlushAllocation(IntPtr allocation, ulong offset, ulong size)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void InvalidateAllocation(IntPtr Allocation, ulong offset, ulong size)
-        {
-            throw new NotImplementedException();
+            return this.AllocateMemory(in memReq, requireDedicatedAlloc, preferDedicatedAlloc, default, image, in createInfo, SuballocationType.Image_Unknown);
         }
 
         public Result CheckCorruption(uint memoryTypeBits)
@@ -384,56 +339,57 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public Result CreateBuffer(in BufferCreateInfo bufferInfo, in AllocationCreateInfo allocInfo, out Buffer? buffer, out Allocation? allocation)
+        public Buffer CreateBuffer(in BufferCreateInfo bufferInfo, in AllocationCreateInfo allocInfo, out Allocation allocation)
         {
             Result res;
-            Buffer bufferLoc;
-            Allocation? allocationLoc;
+            Buffer buffer;
 
-            buffer = null;
-            allocation = null;
+            Allocation? alloc = null;
 
             fixed (BufferCreateInfo* pInfo = &bufferInfo)
             {
-                res = VkApi.CreateBuffer(this.Device, pInfo, null, &bufferLoc);
+                res = VkApi.CreateBuffer(this.Device, pInfo, null, &buffer);
 
                 if (res < 0)
                 {
-                    return res;
+                    throw new AllocationException("Buffer creation failed", res);
                 }
             }
 
-            res = this.AllocateMemoryForBuffer(bufferLoc, allocInfo, out allocationLoc);
-
-            if (res < 0)
+            try
             {
-                VkApi.DestroyBuffer(this.Device, bufferLoc, null);
-                return res;
+                alloc = this.AllocateMemoryForBuffer(buffer, allocInfo);
             }
-            else if ((allocInfo.Flags & AllocationCreateFlags.DontBind) != 0)
+            catch
             {
-                Debug.Assert(allocationLoc != null);
+                VkApi.DestroyBuffer(this.Device, buffer, null);
+                throw;
+            }
+            
+            if ((allocInfo.Flags & AllocationCreateFlags.DontBind) != 0)
+            {
+                Debug.Assert(alloc != null);
 
-                res = this.BindBufferMemory(allocationLoc, 0, bufferLoc, default);
-
-                if (res < 0)
+                try
                 {
-                    VkApi.DestroyBuffer(this.Device, bufferLoc, null);
-                    this.FreeMemory(allocationLoc);
-                    return res;
+                    this.BindBufferMemory(alloc, 0, buffer, default);
+                }
+                catch
+                {
+                    VkApi.DestroyBuffer(this.Device, buffer, null);
+                    alloc.Dispose();
+                    throw;
                 }
             }
 
-            buffer = bufferLoc;
-            allocation = allocationLoc;
+            allocation = alloc;
 
-            return Result.Success;
+            return buffer;
         }
 
-        public Result CreateImage(in ImageCreateInfo imageInfo, in AllocationCreateInfo allocInfo, out Image? image, out Allocation? allocation)
+        public Image CreateImage(in ImageCreateInfo imageInfo, in AllocationCreateInfo allocInfo, out Allocation allocation)
         {
-            image = null;
-            allocation = null;
+            Allocation? alloc = null;
 
             if (imageInfo.Extent.Width == 0 ||
                 imageInfo.Extent.Height == 0 ||
@@ -441,48 +397,51 @@ namespace VMASharp
                 imageInfo.MipLevels == 0 ||
                 imageInfo.ArrayLayers == 0)
             {
-                return Result.ErrorValidationFailedExt;
+                throw new ArgumentException("Invalid Image Info");
             }
 
             Result res;
-            Image imageLoc;
+            Image image;
 
             fixed (ImageCreateInfo* pInfo = &imageInfo)
             {
-                res = VkApi.CreateImage(this.Device, pInfo, null, &imageLoc);
+                res = VkApi.CreateImage(this.Device, pInfo, null, &image);
 
                 if (res < 0)
                 {
-                    return res;
+                    throw new AllocationException("Image creation failed", res);
                 }
             }
 
             SuballocationType suballocType = imageInfo.Tiling == ImageTiling.Optimal ? SuballocationType.Image_Optimal : SuballocationType.Image_Linear;
 
-            res = this.AllocateMemoryForImage(imageLoc, allocInfo, out var allocationLoc);
-
-            if (res < 0)
+            try
             {
-                VkApi.DestroyImage(this.Device, imageLoc, null);
-                return res;
+                alloc = this.AllocateMemoryForImage(image, allocInfo);
+            }
+            catch
+            {
+                VkApi.DestroyImage(this.Device, image, null);
+                throw;
             }
 
             if ((allocInfo.Flags & AllocationCreateFlags.DontBind) == 0)
             {
-                res = this.BindImageMemory(allocationLoc, 0, imageLoc, default);
-
-                if (res < 0)
+                try
                 {
-                    allocationLoc.Dispose();
-                    VkApi.DestroyImage(this.Device, imageLoc, null);
-                    return res;
+                    this.BindImageMemory(alloc, 0, image, default);
+                }
+                catch
+                {
+                    VkApi.DestroyImage(this.Device, image, null);
+                    alloc.Dispose();
+                    throw;
                 }
             }
 
-            image = imageLoc;
-            allocation = allocationLoc;
+            allocation = alloc;
 
-            return Result.Success;
+            return image;
         }
 
         private ref MemoryType MemoryType(int index)
@@ -492,6 +451,12 @@ namespace VMASharp
             return ref Unsafe.Add(ref this.MemoryProperties.MemoryTypes_0, index);
         }
 
+        private ref MemoryHeap MemoryHeap(int index)
+        {
+            Debug.Assert((uint)index < Vk.MaxMemoryHeaps);
+
+            return ref Unsafe.Add(ref this.MemoryProperties.MemoryHeaps_0, index);
+        }
 
         internal int MemoryTypeIndexToHeapIndex(int typeIndex)
         {
@@ -637,16 +602,14 @@ namespace VMASharp
             }
         }
 
-        internal Result AllocateMemory(in MemoryRequirements memReq, bool requiresDedicatedAllocation,
+        internal Allocation[] AllocateMemory(in MemoryRequirements memReq, bool requiresDedicatedAllocation,
             bool prefersDedicatedAllocation, Buffer dedicatedBuffer, Image dedicatedImage,
-            in AllocationCreateInfo createInfo, SuballocationType suballocType, Allocation[] allocations)
+            in AllocationCreateInfo createInfo, SuballocationType suballocType, int allocationCount)
         {
-            Array.Clear(allocations, 0, allocations.Length);
-
             Debug.Assert(Helpers.IsPow2((long)memReq.Alignment));
 
             if (memReq.Size == 0)
-                return Result.ErrorValidationFailedExt;
+                throw new ArgumentException("Allocation size cannot be 0");
 
             const AllocationCreateFlags CheckFlags1 = AllocationCreateFlags.DedicatedMemory | AllocationCreateFlags.NeverAllocate;
             const AllocationCreateFlags CheckFlags2 = AllocationCreateFlags.Mapped | AllocationCreateFlags.CanBecomeLost;
@@ -690,7 +653,7 @@ namespace VMASharp
                     infoForPool.Flags &= ~AllocationCreateFlags.Mapped;
                 }
 
-                return createInfo.Pool.BlockList.Allocate(this.CurrentFrameIndex, (long)memReq.Size, alignmentForPool, infoForPool, suballocType, allocations);
+                return createInfo.Pool.BlockList.Allocate(this.CurrentFrameIndex, (long)memReq.Size, alignmentForPool, infoForPool, suballocType, allocationCount);
             }
             else
             {
@@ -699,145 +662,428 @@ namespace VMASharp
 
                 if (typeIndex == null)
                 {
-                    return Result.ErrorFeatureNotPresent;
+                    throw new AllocationException("Unable to find suitable memory type for allocation", Result.ErrorFeatureNotPresent);
                 }
 
                 long alignmentForType = Math.Max((long)memReq.Alignment, this.GetMemoryTypeMinAlignment((int)typeIndex));
 
-                return this.AllocateMemoryOfType((long)memReq.Size, alignmentForType, requiresDedicatedAllocation | prefersDedicatedAllocation, dedicatedBuffer, dedicatedImage, createInfo, (int)typeIndex, suballocType, allocations);
+                return this.AllocateMemoryOfType((long)memReq.Size, alignmentForType, requiresDedicatedAllocation | prefersDedicatedAllocation, dedicatedBuffer, dedicatedImage, createInfo, (int)typeIndex, suballocType, allocationCount);
             }
         }
 
-        internal Result AllocateMemory(in MemoryRequirements memReq, bool requiresDedicatedAllocation,
+        internal Allocation AllocateMemory(in MemoryRequirements memReq, bool requiresDedicatedAllocation,
             bool prefersDedicatedAllocation, Buffer dedicatedBuffer, Image dedicatedImage,
-            in AllocationCreateInfo createInfo, SuballocationType suballocType, out Allocation? allocation)
+            in AllocationCreateInfo createInfo, SuballocationType suballocType)
         {
+            Debug.Assert(Helpers.IsPow2((long)memReq.Alignment));
 
+            if (memReq.Size == 0)
+                throw new ArgumentException("Allocation size cannot be 0");
+
+            const AllocationCreateFlags CheckFlags1 = AllocationCreateFlags.DedicatedMemory | AllocationCreateFlags.NeverAllocate;
+            const AllocationCreateFlags CheckFlags2 = AllocationCreateFlags.Mapped | AllocationCreateFlags.CanBecomeLost;
+
+            if ((createInfo.Flags & CheckFlags1) == CheckFlags1)
+            {
+                throw new ArgumentException("Specifying AllocationCreateFlags.DedicatedMemory with AllocationCreateFlags.NeverAllocate is invalid");
+            }
+            else if ((createInfo.Flags & CheckFlags2) == CheckFlags2)
+            {
+                throw new ArgumentException("Specifying AllocationCreateFlags.Mapped with AllocationCreateFlags.CanBecomeLost is invalid");
+            }
+
+            if (requiresDedicatedAllocation)
+            {
+                if ((createInfo.Flags & AllocationCreateFlags.NeverAllocate) != 0)
+                {
+                    throw new AllocationException("AllocationCreateFlags.NeverAllocate specified while dedicated allocation required", Result.ErrorOutOfDeviceMemory);
+                }
+
+                if (createInfo.Pool != null)
+                {
+                    throw new ArgumentException("Pool specified while dedicated allocation required");
+                }
+            }
+
+            if (createInfo.Pool != null && (createInfo.Flags & AllocationCreateFlags.DedicatedMemory) != 0)
+            {
+                throw new ArgumentException("Specified AllocationCreateFlags.DedicatedMemory when createInfo.Pool is not null");
+            }
+
+            if (createInfo.Pool != null)
+            {
+                int memoryTypeIndex = createInfo.Pool.BlockList.MemoryTypeIndex;
+                long alignmentForPool = Math.Max((long)memReq.Alignment, this.GetMemoryTypeMinAlignment(memoryTypeIndex));
+
+                AllocationCreateInfo infoForPool = createInfo;
+
+                if ((createInfo.Flags & AllocationCreateFlags.Mapped) != 0 && !this.MemoryType(memoryTypeIndex).PropertyFlags.HasFlag(MemoryPropertyFlags.MemoryPropertyHostVisibleBit))
+                {
+                    infoForPool.Flags &= ~AllocationCreateFlags.Mapped;
+                }
+
+                return createInfo.Pool.BlockList.Allocate(this.CurrentFrameIndex, (long)memReq.Size, alignmentForPool, infoForPool, suballocType);
+            }
+            else
+            {
+                uint memoryTypeBits = memReq.MemoryTypeBits;
+                var typeIndex = this.FindMemoryTypeIndex(memoryTypeBits, createInfo);
+
+                if (typeIndex == null)
+                {
+                    throw new AllocationException("Unable to find suitable memory type for allocation", Result.ErrorFeatureNotPresent);
+                }
+
+                long alignmentForType = Math.Max((long)memReq.Alignment, this.GetMemoryTypeMinAlignment((int)typeIndex));
+
+                return this.AllocateMemoryOfType((long)memReq.Size, alignmentForType, requiresDedicatedAllocation | prefersDedicatedAllocation, dedicatedBuffer, dedicatedImage, createInfo, (int)typeIndex, suballocType);
+            }
         }
 
-        internal void FreeMemory(params Allocation[] allocations)
+        public void FreeMemory(Allocation allocation)
         {
+            if (allocation is null)
+            {
+                throw new ArgumentNullException(nameof(allocation));
+            }
 
+            if (allocation.TouchAllocation())
+            {
+                if (allocation is BlockAllocation blockAlloc)
+                {
+                    BlockList list;
+                    var pool = blockAlloc.Block.ParentPool;
+                    
+                    if (pool != null)
+                    {
+                        list = pool.BlockList;
+                    }
+                    else
+                    {
+                        list = this.BlockLists[allocation.MemoryTypeIndex];
+                        Debug.Assert(list != null);
+                    }
+
+                    list.Free(allocation);
+                }
+                else
+                {
+                    Debug.Assert(allocation is DedicatedAllocation);
+                    FreeDedicatedMemory(allocation);
+                }
+            }
+
+            this.Budget.RemoveAllocation(this.MemoryTypeIndexToHeapIndex(allocation.MemoryTypeIndex), allocation.Size);
         }
 
-        internal void CalculateStats(Stats stats)
+        internal void FreeMemory(Allocation[] allocations)
         {
-
+            throw new NotImplementedException();
         }
 
-        internal void GetBudget(out AllocationBudget outBudget, int firstHeap, int heapCount)
+        public Stats CalculateStats()
         {
+            var newStats = new Stats();
 
+            for (int i = 0; i < this.MemoryTypeCount; ++i)
+            {
+                var list = this.BlockLists[i];
+
+                Debug.Assert(list != null);
+
+                list.AddStats(newStats);
+            }
+
+            this.PoolsMutex.EnterReadLock();
+            try
+            {
+                foreach (var pool in this.Pools)
+                {
+                    pool.BlockList.AddStats(newStats);
+                }
+            }
+            finally
+            {
+                this.PoolsMutex.ExitReadLock();
+            }
+
+            for (int typeIndex = 0; typeIndex < this.MemoryTypeCount; ++typeIndex)
+            {
+                int heapIndex = this.MemoryTypeIndexToHeapIndex(typeIndex);
+
+                ref DedicatedAllocationHandler handler = ref DedicatedAllocations[typeIndex];
+
+                handler.Mutex.EnterReadLock();
+
+                try
+                {
+                    foreach (var alloc in handler.Allocations)
+                    {
+                        ((DedicatedAllocation)alloc).CalcStatsInfo(out var stat);
+
+                        StatInfo.Add(ref newStats.Total, stat);
+                        StatInfo.Add(ref newStats.MemoryType[typeIndex], stat);
+                        StatInfo.Add(ref newStats.MemoryHeap[heapIndex], stat);
+                    }
+                }
+                finally
+                {
+                    handler.Mutex.ExitReadLock();
+                }
+            }
+
+            newStats.PostProcess();
+
+            return newStats;
+        }
+
+        internal void GetBudget(int heapIndex, out AllocationBudget outBudget)
+        {
+            outBudget = new AllocationBudget();
+
+            if ((uint)heapIndex >= Vk.MaxMemoryHeaps)
+            {
+                throw new ArgumentOutOfRangeException(nameof(heapIndex));
+            }
+
+            if (this.UseExtMemoryBudget)
+            {
+                //Reworked to remove recursion
+                if (this.Budget.OperationsSinceBudgetFetch >= 30)
+                {
+                    this.UpdateVulkanBudget(); //Outside of mutex lock
+                }
+
+                this.Budget.BudgetMutex.EnterReadLock();
+                try
+                {
+                    ref var heapBudget = ref this.Budget.BudgetData[heapIndex];
+
+                    outBudget.BlockBytes = heapBudget.BlockBytes;
+                    outBudget.AllocationBytes = heapBudget.AllocationBytes;
+
+                    if (heapBudget.VulkanUsage + outBudget.BlockBytes > heapBudget.BlockBytesAtBudgetFetch)
+                    {
+                        outBudget.Usage = heapBudget.VulkanUsage + outBudget.BlockBytes - heapBudget.BlockBytesAtBudgetFetch;
+                    }
+                    else
+                    {
+                        outBudget.Usage = 0;
+                    }
+
+                    outBudget.Budget = Math.Min(heapBudget.VulkanBudget, (long)this.MemoryHeap(heapIndex).Size);
+                }
+                finally
+                {
+                    this.Budget.BudgetMutex.ExitReadLock();
+                }
+            }
+            else
+            {
+                ref var heapBudget = ref this.Budget.BudgetData[heapIndex];
+
+                outBudget.BlockBytes = heapBudget.BlockBytes;
+                outBudget.AllocationBytes = heapBudget.AllocationBytes;
+
+                outBudget.Usage = heapBudget.BlockBytes;
+                outBudget.Budget = (long)(this.MemoryHeap(heapIndex).Size * 8 / 10); //80% heuristics
+            }
+        }
+
+        internal void GetBudget(int firstHeap, AllocationBudget[] outBudgets)
+        {
+            Debug.Assert(outBudgets != null && outBudgets.Length != 0);
+            Array.Clear(outBudgets, 0, outBudgets.Length);
+
+            if ((uint)(outBudgets.Length + firstHeap) >= Vk.MaxMemoryHeaps)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            if (this.UseExtMemoryBudget)
+            {
+                //Reworked to remove recursion
+                if (this.Budget.OperationsSinceBudgetFetch >= 30)
+                {
+                    this.UpdateVulkanBudget(); //Outside of mutex lock
+                }
+
+                this.Budget.BudgetMutex.EnterReadLock();
+                try
+                {
+                    for (int i = 0; i < outBudgets.Length; ++i)
+                    {
+                        int heapIndex = i + firstHeap;
+                        ref AllocationBudget outBudget = ref outBudgets[i];
+
+                        ref var heapBudget = ref this.Budget.BudgetData[heapIndex];
+
+                        outBudget.BlockBytes = heapBudget.BlockBytes;
+                        outBudget.AllocationBytes = heapBudget.AllocationBytes;
+
+                        if (heapBudget.VulkanUsage + outBudget.BlockBytes > heapBudget.BlockBytesAtBudgetFetch)
+                        {
+                            outBudget.Usage = heapBudget.VulkanUsage + outBudget.BlockBytes - heapBudget.BlockBytesAtBudgetFetch;
+                        }
+                        else
+                        {
+                            outBudget.Usage = 0;
+                        }
+
+                        outBudget.Budget = Math.Min(heapBudget.VulkanBudget, (long)this.MemoryHeap(heapIndex).Size);
+                    }
+                }
+                finally
+                {
+                    this.Budget.BudgetMutex.ExitReadLock();
+                }
+            }
+            else
+            {
+                for (int i = 0; i < outBudgets.Length; ++i)
+                {
+                    int heapIndex = i + firstHeap;
+                    ref AllocationBudget outBudget = ref outBudgets[i];
+                    ref var heapBudget = ref this.Budget.BudgetData[heapIndex];
+
+                    outBudget.BlockBytes = heapBudget.BlockBytes;
+                    outBudget.AllocationBytes = heapBudget.AllocationBytes;
+
+                    outBudget.Usage = heapBudget.BlockBytes;
+                    outBudget.Budget = (long)(this.MemoryHeap(heapIndex).Size * 8 / 10); //80% heuristics
+                }
+            }
         }
 
         internal Result DefragmentationBegin(in DefragmentationInfo2 info, DefragmentationStats stats, DefragmentationContext context)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result DefragmentationEnd(DefragmentationContext context)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result DefragmentationPassBegin(ref DefragmentationPassMoveInfo[] passInfo, DefragmentationContext context)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result DefragmentationPassEnd(DefragmentationContext context)
         {
-
+            throw new NotImplementedException();
         }
 
-        internal bool TouchAllocation(Allocation allocation)
+        public VulkanMemoryPool CreatePool(in AllocationPoolCreateInfo createInfo)
         {
+            var tmpCreateInfo = createInfo;
 
-        }
+            if (tmpCreateInfo.MaxBlockCount == 0)
+            {
+                tmpCreateInfo.MaxBlockCount = int.MaxValue;
+            }
 
-        internal Result CreatePool(in AllocationPoolCreateInfo createInfo, VulkanMemoryPool pool)
-        {
+            if (tmpCreateInfo.MinBlockCount > tmpCreateInfo.MaxBlockCount)
+            {
+                throw new ArgumentException("Min block count is higher than max block count");
+            }
 
+            if (tmpCreateInfo.MemoryTypeIndex >= this.MemoryTypeCount || ((1u << tmpCreateInfo.MemoryTypeIndex) & this.GlobalMemoryTypeBits) == 0)
+            {
+                throw new ArgumentException("Invalid memory type index");
+            }
+
+            long preferredBlockSize = this.CalcPreferredBlockSize(tmpCreateInfo.MemoryTypeIndex);
+
+            var pool = new VulkanMemoryPool(this, tmpCreateInfo, preferredBlockSize);
+
+            this.PoolsMutex.EnterWriteLock();
+            try 
+            {
+                this.Pools.Add(pool);
+            }
+            finally
+            {
+                this.PoolsMutex.ExitWriteLock();
+            }
+
+            return pool;
         }
 
         internal void DestroyPool(VulkanMemoryPool pool)
         {
-
+            throw new NotImplementedException();
         }
 
         internal void GetPoolStats(VulkanMemoryPool pool, out PoolStats stats)
         {
-
+            throw new NotImplementedException();
         }
 
         internal int MakePoolAllocationsLost(VulkanMemoryPool pool)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result CheckPoolCorruption(VulkanMemoryPool pool)
         {
-
-        }
-
-        internal Result CheckCorruption(uint memoryTypeBits)
-        {
-
+            throw new NotImplementedException();
         }
 
         internal Allocation CreateLostAllocation()
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result AllocateVulkanMemory(in MemoryAllocateInfo allocInfo, out DeviceMemory memory)
         {
-
+            throw new NotImplementedException();
         }
 
-        internal Result FreeVulkanMemory(uint memoryType, long size, DeviceMemory memory)
+        internal Result FreeVulkanMemory(int memoryType, long size, DeviceMemory memory)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result BindVulkanBuffer(DeviceMemory memory, long offset, Buffer buffer, IntPtr next)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result BindVulkanImage(DeviceMemory memory, long offset, Image image, IntPtr next)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result Map(Allocation allocation, out IntPtr pData)
         {
-
+            throw new NotImplementedException();
         }
 
         internal void Unmap(Allocation allocation)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result BindBufferMemory(Allocation allocation, long allocationLocalOffset, Buffer buffer, IntPtr pNext)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result BindImageMemory(Allocation allocation, long allocationLocalOffset, Image buffer, IntPtr pNext)
         {
-
+            throw new NotImplementedException();
         }
 
         internal void FillAllocation(Allocation allocation, byte pattern)
         {
-
+            throw new NotImplementedException();
         }
 
         internal uint GetGPUDefragmentationMemoryTypeBits()
         {
-
+            throw new NotImplementedException();
         }
 
         private long CalcPreferredBlockSize(int memTypeIndex)
@@ -851,9 +1097,9 @@ namespace VMASharp
             return Helpers.AlignUp(heapSize <= SmallHeapMaxSize ? (heapSize / 8) : this.PreferredLargeHeapBlockSize, 32);
         }
 
-        private Result AllocateMemoryOfType(long size, long alignment, bool dedicatedAllocation, Buffer dedicatedBuffer,
+        private Allocation[] AllocateMemoryOfType(long size, long alignment, bool dedicatedAllocation, Buffer dedicatedBuffer,
                                             Image dedicatedImage, in AllocationCreateInfo createInfo,
-                                            int memoryTypeIndex, SuballocationType suballocType, Allocation[] allocations)
+                                            int memoryTypeIndex, SuballocationType suballocType, int allocationCount)
         {
             var finalCreateInfo = createInfo;
 
@@ -877,52 +1123,309 @@ namespace VMASharp
                 finalCreateInfo.Flags |= AllocationCreateFlags.DedicatedMemory;
             }
 
-            if ((finalCreateInfo.Flags & AllocationCreateFlags.DedicatedMemory) != 0)
-            {
-                if ((finalCreateInfo.Flags & AllocationCreateFlags.NeverAllocate) != 0)
-                {
-                    return Result.ErrorOutOfDeviceMemory;
-                }
+            Exception? blockAllocException = null;
 
-                return this.AllocateDedicatedMemory(size,
-                                                    suballocType,
-                                                    memoryTypeIndex,
-                                                    (finalCreateInfo.Flags & AllocationCreateFlags.WithinBudget) != 0,
-                                                    (finalCreateInfo.Flags & AllocationCreateFlags.Mapped) != 0,
-                                                    finalCreateInfo.UserData,
-                                                    dedicatedBuffer,
-                                                    dedicatedImage,
-                                                    allocations);
+            if ((finalCreateInfo.Flags & AllocationCreateFlags.DedicatedMemory) == 0)
+            {
+                try
+                {
+                    return blockList.Allocate(this.CurrentFrameIndex, size, alignment, finalCreateInfo, suballocType, allocationCount);
+                }
+                catch (Exception e) //Catch exception and attempt to allocate dedicated memory, this behavior may be changed for multi-allocations
+                {
+                    blockAllocException = e;
+                }
             }
 
+            //Try a dedicated allocation if a block allocation failed, or if specified as a dedicated allocation
+            if ((finalCreateInfo.Flags & AllocationCreateFlags.NeverAllocate) != 0)
+            {
+                throw new AllocationException("Block List allocation failed, and `AllocationCreateFlags.NeverAllocate` specified", blockAllocException);
+            }
 
+            return this.AllocateDedicatedMemory(size,
+                                                suballocType,
+                                                memoryTypeIndex,
+                                                (finalCreateInfo.Flags & AllocationCreateFlags.WithinBudget) != 0,
+                                                (finalCreateInfo.Flags & AllocationCreateFlags.Mapped) != 0,
+                                                finalCreateInfo.UserData,
+                                                dedicatedBuffer,
+                                                dedicatedImage,
+                                                allocationCount);
         }
 
-        private Result AllocateDedicatedMemoryPage(
-            long size, SuballocationType suballocType, uint memTypeIndex, in MemoryAllocateInfo allocInfo, bool map,
-            object userData, out Allocation allocation)
+        private Allocation AllocateMemoryOfType(long size, long alignment, bool dedicatedAllocation, Buffer dedicatedBuffer,
+                                            Image dedicatedImage, in AllocationCreateInfo createInfo,
+                                            int memoryTypeIndex, SuballocationType suballocType)
         {
+            var finalCreateInfo = createInfo;
 
+            if ((finalCreateInfo.Flags & AllocationCreateFlags.Mapped) != 0 && (this.MemoryType(memoryTypeIndex).PropertyFlags & MemoryPropertyFlags.MemoryPropertyHostVisibleBit) == 0)
+            {
+                finalCreateInfo.Flags &= ~AllocationCreateFlags.Mapped;
+            }
+
+            if (finalCreateInfo.Usage == MemoryUsage.GPU_LazilyAllocated)
+            {
+                finalCreateInfo.Flags |= AllocationCreateFlags.DedicatedMemory;
+            }
+
+            var blockList = this.BlockLists[memoryTypeIndex];
+
+            long preferredBlockSize = blockList.PreferredBlockSize;
+            bool preferDedicatedMemory = dedicatedAllocation || size > preferredBlockSize / 2;
+
+            if (preferDedicatedMemory && (finalCreateInfo.Flags & AllocationCreateFlags.NeverAllocate) == 0 && finalCreateInfo.Pool == null)
+            {
+                finalCreateInfo.Flags |= AllocationCreateFlags.DedicatedMemory;
+            }
+
+            Exception? blockAllocException = null;
+
+            if ((finalCreateInfo.Flags & AllocationCreateFlags.DedicatedMemory) == 0)
+            {
+                try
+                {
+                    return blockList.Allocate(this.CurrentFrameIndex, size, alignment, finalCreateInfo, suballocType);
+                }
+                catch (Exception e)
+                {
+                    blockAllocException = e;
+                }
+            }
+
+            //Try a dedicated allocation if a block allocation failed, or if specified as a dedicated allocation
+            if ((finalCreateInfo.Flags & AllocationCreateFlags.NeverAllocate) != 0)
+            {
+                throw new AllocationException("Block List allocation failed, and `AllocationCreateFlags.NeverAllocate` specified", blockAllocException);
+            }
+
+            return this.AllocateDedicatedMemory(size,
+                                                suballocType,
+                                                memoryTypeIndex,
+                                                (finalCreateInfo.Flags & AllocationCreateFlags.WithinBudget) != 0,
+                                                (finalCreateInfo.Flags & AllocationCreateFlags.Mapped) != 0,
+                                                finalCreateInfo.UserData,
+                                                dedicatedBuffer,
+                                                dedicatedImage);
         }
 
-        private Result AllocateDedicatedMemory(long size, SuballocationType suballocType, int memTypeIndex, bool withinBudget, bool map, object userData, Buffer dedicatedBuffer, Image dedicatedImage, Allocation[] allocations)
+        private Allocation AllocateDedicatedMemoryPage(
+            long size, SuballocationType suballocType, int memTypeIndex, in MemoryAllocateInfo allocInfo, bool map,
+            object userData)
         {
+            var res = this.AllocateVulkanMemory(allocInfo, out var memory);
 
+            if (res < 0)
+            {
+                throw new AllocationException("Dedicated memory allocation Failed", res);
+            }
+
+            IntPtr mappedData = default;
+            if (map)
+            {
+                res = VkApi.MapMemory(this.Device, memory, 0, Vk.WholeSize, 0, (void**)&mappedData);
+
+                if (res < 0)
+                {
+                    this.FreeVulkanMemory(memTypeIndex, size, memory);
+
+                    throw new AllocationException("Unable to map dedicated allocation", res);
+                }
+            }
+
+            var allocation = new DedicatedAllocation(this, memTypeIndex, memory, suballocType, mappedData, size)
+            {
+                UserData = userData
+            };
+
+            this.Budget.AddAllocation(this.MemoryTypeIndexToHeapIndex(memTypeIndex), size);
+
+            //this.FillAllocation(allocation, Helpers.AllocationFillPattern_Created);
+
+            return allocation;
+        }
+
+        private Allocation[] AllocateDedicatedMemory(long size, SuballocationType suballocType, int memTypeIndex, bool withinBudget, bool map, object userData, Buffer dedicatedBuffer, Image dedicatedImage, int allocationCount)
+        {
+            int heapIndex = this.MemoryTypeIndexToHeapIndex(memTypeIndex);
+
+            if (withinBudget)
+            {
+                this.GetBudget(heapIndex, out var budget);
+                if (budget.Usage + size * allocationCount > budget.Budget)
+                {
+                    throw new AllocationException("Memory Budget limit reached for heap index " + heapIndex, Result.ErrorOutOfDeviceMemory);
+                }
+            }
+
+            MemoryAllocateInfo allocInfo = new MemoryAllocateInfo
+            {
+                MemoryTypeIndex = (uint)memTypeIndex,
+                AllocationSize = (ulong)size
+            };
+
+            MemoryDedicatedAllocateInfo dedicatedAllocInfo;
+
+            if (this.VulkanAPIVersion >= new Version32(1, 1, 0) || this.UseKhrDedicatedAllocation)
+            {
+                dedicatedAllocInfo = new MemoryDedicatedAllocateInfo { SType = StructureType.MemoryDedicatedAllocateInfo };
+
+                if (dedicatedBuffer.Handle != default)
+                {
+                    dedicatedAllocInfo.Buffer = dedicatedBuffer;
+                    allocInfo.PNext = &dedicatedAllocInfo;
+                }
+                else if (dedicatedImage.Handle != default)
+                {
+                    dedicatedAllocInfo.Image = dedicatedImage;
+                    allocInfo.PNext = &dedicatedAllocInfo;
+                }
+            }
+
+            int allocIndex = 0;
+            Result res = Result.Success;
+            Allocation[] allocations = new Allocation[allocationCount];
+
+            try
+            {
+                for (allocIndex = 0; allocIndex < allocations.Length; ++allocIndex)
+                {
+                    allocations[allocIndex] = this.AllocateDedicatedMemoryPage(size, suballocType, memTypeIndex, allocInfo, map, userData);
+
+                    if (res != Result.Success)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch
+            {
+                while (allocIndex > 0)
+                {
+                    allocIndex -= 1;
+
+                    var alloc = allocations[allocIndex];
+
+                    Debug.Assert(alloc != null);
+
+                    var memory = alloc.Memory;
+
+                    /*
+                    There is no need to call this, because Vulkan spec allows to skip vkUnmapMemory
+                    before vkFreeMemory.
+
+                    if(currAlloc->GetMappedData() != VMA_NULL)
+                    {
+                        (*m_VulkanFunctions.vkUnmapMemory)(m_hDevice, hMemory);
+                    }
+                    */
+
+                    this.FreeVulkanMemory(memTypeIndex, alloc.Size, memory);
+                    this.Budget.RemoveAllocation(heapIndex, alloc.Size);
+                }
+
+                throw;
+            }
+
+            //Register made allocations
+            ref DedicatedAllocationHandler handler = ref this.DedicatedAllocations[memTypeIndex];
+
+            handler.Mutex.EnterWriteLock();
+            try
+            {
+                foreach (var alloc in allocations)
+                {
+                    Debug.Assert(alloc != null);
+                    handler.Allocations.InsertSorted(alloc, (alloc1, alloc2) => alloc1.Offset.CompareTo(alloc2.Offset));
+                }
+            }
+            finally
+            {
+                handler.Mutex.ExitWriteLock();
+            }
+
+            return allocations;
+        }
+
+        private Allocation AllocateDedicatedMemory(long size, SuballocationType suballocType, int memTypeIndex, bool withinBudget, bool map, object userData, Buffer dedicatedBuffer, Image dedicatedImage)
+        {
+            int heapIndex = this.MemoryTypeIndexToHeapIndex(memTypeIndex);
+
+            if (withinBudget)
+            {
+                this.GetBudget(heapIndex, out var budget);
+                if (budget.Usage + size > budget.Budget)
+                {
+                    throw new AllocationException("Memory Budget limit reached for heap index " + heapIndex, Result.ErrorOutOfDeviceMemory);
+                }
+            }
+
+            MemoryAllocateInfo allocInfo = new MemoryAllocateInfo
+            {
+                MemoryTypeIndex = (uint)memTypeIndex,
+                AllocationSize = (ulong)size
+            };
+
+            MemoryDedicatedAllocateInfo dedicatedAllocInfo;
+
+            if (this.VulkanAPIVersion >= new Version32(1, 1, 0) || this.UseKhrDedicatedAllocation)
+            {
+                dedicatedAllocInfo = new MemoryDedicatedAllocateInfo { SType = StructureType.MemoryDedicatedAllocateInfo };
+
+                if (dedicatedBuffer.Handle != default)
+                {
+                    dedicatedAllocInfo.Buffer = dedicatedBuffer;
+                    allocInfo.PNext = &dedicatedAllocInfo;
+                }
+                else if (dedicatedImage.Handle != default)
+                {
+                    dedicatedAllocInfo.Image = dedicatedImage;
+                    allocInfo.PNext = &dedicatedAllocInfo;
+                }
+            }
+
+            var alloc = this.AllocateDedicatedMemoryPage(size, suballocType, memTypeIndex, allocInfo, map, userData);
+
+            //Register made allocations
+            ref DedicatedAllocationHandler handler = ref this.DedicatedAllocations[memTypeIndex];
+
+            handler.Mutex.EnterWriteLock();
+            try
+            {
+                handler.Allocations.InsertSorted(alloc, (alloc1, alloc2) => alloc1.Offset.CompareTo(alloc2.Offset));
+            }
+            finally
+            {
+                handler.Mutex.ExitWriteLock();
+            }
+
+            return alloc;
         }
 
         private void FreeDedicatedMemory(Allocation allocation)
         {
+            if (!(allocation is DedicatedAllocation dedicated))
+            {
+                throw new ArgumentException("allocation is not a dedicated allocation");
+            }
 
+            throw new NotImplementedException();
         }
 
         private uint CalculateGpuDefragmentationMemoryTypeBits()
         {
-
+            throw new NotImplementedException();
         }
 
         private uint CalculateGlobalMemoryTypeBits()
         {
+            throw new NotImplementedException();
+        }
 
+        private void UpdateVulkanBudget()
+        {
+            throw new NotImplementedException();
         }
 
         internal struct DedicatedAllocationHandler

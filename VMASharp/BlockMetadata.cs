@@ -49,7 +49,7 @@ namespace VMASharp
 
         public abstract int MakeAllocationsLost(int currentFrame, int frameInUseCount);
 
-        public abstract Result CheckCorruption(IntPtr blockData);
+        public abstract void CheckCorruption(IntPtr blockData);
 
         public abstract Allocation Alloc(in AllocationRequest request, SuballocationType type, long allocSize);
 

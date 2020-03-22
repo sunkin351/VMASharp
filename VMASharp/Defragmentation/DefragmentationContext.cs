@@ -8,7 +8,7 @@ using VMASharp;
 
 namespace VMASharp.Defragmentation
 {
-    public class DefragmentationContext : IDisposable
+    public sealed class DefragmentationContext : IDisposable
     {
         private readonly VulkanMemoryAllocator Allocator;
         private readonly uint currentFrame;
@@ -24,39 +24,39 @@ namespace VMASharp.Defragmentation
 
         internal DefragmentationContext(VulkanMemoryAllocator allocator, uint currentFrame, uint flags, DefragmentationStats stats)
         {
-
+            throw new NotImplementedException();
         }
 
-        internal void Dispose()
+        public void Dispose()
         {
-
+            throw new NotImplementedException();
         }
 
         internal void AddPools(params VulkanMemoryPool[] Pools)
         {
-
+            throw new NotImplementedException();
         }
 
         internal void AddAllocations(Allocation[] allocations, out bool[] allocationsChanged)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result Defragment(ulong maxCPUBytesToMove, int maxCPUAllocationsToMove, ulong maxGPUBytesToMove,
             int maxGPUAllocationsToMove, CommandBuffer cbuffer, DefragmentationStats stats,
             DefragmentationFlags flags)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result DefragmentationPassBegin(ref DefragmentationPassMoveInfo[] Info)
         {
-
+            throw new NotImplementedException();
         }
 
         internal Result DefragmentationPassEnd()
         {
-
+            throw new NotImplementedException();
         }
     }
 }

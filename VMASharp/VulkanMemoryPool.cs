@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Threading;
+using System.Runtime.CompilerServices;
 
 using Silk.NET.Vulkan;
 using VMASharp;
@@ -26,9 +27,16 @@ namespace VMASharp
                 throw new ArgumentNullException(nameof(allocator));
             }
 
-            Allocator = allocator;
+            this.Allocator = allocator;
 
-            BlockList = new BlockList(
+            ref int tmpRef = ref Unsafe.As<uint, int>(ref allocator.NextPoolID);
+
+            this.ID = (uint)Interlocked.Increment(ref tmpRef);
+
+            if (this.ID == 0)
+                throw new OverflowException();
+
+            this.BlockList = new BlockList(
                 allocator,
                 this,
                 poolInfo.MemoryTypeIndex,
@@ -39,6 +47,8 @@ namespace VMASharp
                 poolInfo.FrameInUseCount,
                 poolInfo.BlockSize != 0,
                 (poolInfo.Flags & (PoolCreateFlags.BuddyAlgorithm | PoolCreateFlags.LinearAlgorithm)) == PoolCreateFlags.LinearAlgorithm);
+
+            this.BlockList.CreateMinBlocks();
         }
 
         public void Dispose()

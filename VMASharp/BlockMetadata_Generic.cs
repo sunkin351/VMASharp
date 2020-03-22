@@ -64,8 +64,10 @@ namespace VMASharp
             this.freeSuballocationsBySize.Add(node);
         }
 
-        public override void Alloc(in AllocationRequest request, SuballocationType type, long allocSize, Allocation allocation)
+        public override Allocation Alloc(in AllocationRequest request, SuballocationType type, long allocSize)
         {
+            throw new NotImplementedException();
+
             Debug.Assert(request.Type == AllocationRequestType.Normal);
             Debug.Assert(request.Item != null);
             Debug.Assert(object.ReferenceEquals(request.Item.List, this.suballocations));
@@ -85,7 +87,7 @@ namespace VMASharp
             suballoc.Offset = request.Offset;
             suballoc.Size = allocSize;
             suballoc.Type = type;
-            suballoc.Allocation = allocation;
+            //suballoc.Allocation
 
             if (paddingEnd > 0)
             {
@@ -128,7 +130,7 @@ namespace VMASharp
             this.sumFreeSize -= allocSize;
         }
 
-        public override Result CheckCorruption(object blockData)
+        public override void CheckCorruption(IntPtr blockData)
         {
             throw new NotImplementedException();
         }

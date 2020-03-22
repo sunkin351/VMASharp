@@ -8,7 +8,7 @@ namespace VMASharp
     internal class Suballocation
     {
         public long Offset, Size;
-        public Allocation Allocation;
+        public BlockAllocation Allocation;
         public SuballocationType Type;
 
         public delegate int Comparer(Suballocation alloc1, Suballocation alloc2);

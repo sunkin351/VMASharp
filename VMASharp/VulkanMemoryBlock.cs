@@ -7,6 +7,8 @@ using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 using VMASharp;
 
+#nullable enable
+
 namespace VMASharp
 {
     internal class VulkanMemoryBlock : IDisposable
@@ -45,7 +47,7 @@ namespace VMASharp
             this.MetaData.Init(size);
         }
 
-        public VulkanMemoryPool ParentPool { get; }
+        public VulkanMemoryPool? ParentPool { get; }
 
         public DeviceMemory DeviceMemory { get; }
 
@@ -82,28 +84,25 @@ namespace VMASharp
             MetaData.Validate();
         }
 
-        public Result CheckCorruption(VulkanMemoryAllocator allocator)
+        public void CheckCorruption(VulkanMemoryAllocator allocator)
         {
-            var res = this.Map(1, out IntPtr data);
+            var data = this.Map(1);
 
-            if (res != Result.Success)
+            try
             {
-                return res;
+                this.MetaData.CheckCorruption(data);
             }
-
-            res = this.MetaData.CheckCorruption(data);
-
-            this.Unmap(1);
-
-            return res;
+            finally
+            {
+                this.Unmap(1);
+            }
         }
 
-        public unsafe Result Map(int count, out IntPtr data)
+        public unsafe IntPtr Map(int count)
         {
-            if (count == 0)
+            if (count < 0)
             {
-                data = default;
-                return Result.Success;
+                throw new ArgumentOutOfRangeException(nameof(count));
             }
 
             lock (this.SyncLock)
@@ -115,26 +114,27 @@ namespace VMASharp
                     Debug.Assert(this.MappedData != default);
 
                     this.mapCount += count;
-                    data = this.MappedData;
-                    return Result.Success;
+                    return this.MappedData;
                 }
                 else
                 {
+                    if (count == 0)
+                    {
+                        return default;
+                    }
+
                     IntPtr pData;
                     var res = VkApi.MapMemory(this.Allocator.Device, this.DeviceMemory, 0, Vk.WholeSize, 0, (void**)&pData);
 
-                    if (res == Result.Success)
+                    if (res != Result.Success)
                     {
-                        this.mapCount = count;
-                        this.MappedData = pData;
-                        data = pData;
-                    }
-                    else
-                    {
-                        data = default;
+                        throw new MapMemoryException(res);
                     }
 
-                    return res;
+                    this.mapCount = count;
+                    this.MappedData = pData;
+
+                    return pData;
                 }
             }
         }

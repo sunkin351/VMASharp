@@ -74,7 +74,7 @@ namespace VMASharp.Defragmentation
                 }
             }
 
-            public void Register(int blockInfoIndex, ulong offset, ulong size)
+            public void Register(int blockInfoIndex, long offset, long size)
             {
                 if (size < Helpers.MinFreeSuballocationSizeToRegister)
                 {
@@ -108,10 +108,10 @@ namespace VMASharp.Defragmentation
                 }
             }
 
-            public bool Fetch(ulong alignment, ulong size, out int blockInfoIndex, out ulong destOffset)
+            public bool Fetch(long alignment, long size, out int blockInfoIndex, out long destOffset)
             {
                 int bestIndex = -1;
-                ulong bestFreeSpaceAfter = 0;
+                long bestFreeSpaceAfter = 0;
 
                 for (int i = 0; i < FreeSpaces.Length; ++i)
                 {
@@ -120,11 +120,11 @@ namespace VMASharp.Defragmentation
                     if (space.BlockInfoIndex == -1)
                         break;
 
-                    ulong tmpOffset = Helpers.AlignUp(space.Offset, alignment);
+                    long tmpOffset = Helpers.AlignUp(space.Offset, alignment);
 
                     if (tmpOffset + size <= space.Offset + space.Size)
                     {
-                        ulong freeSpaceAfter = (space.Offset + space.Size) - (tmpOffset + size);
+                        long freeSpaceAfter = (space.Offset + space.Size) - (tmpOffset + size);
 
                         if (bestIndex == -1 || freeSpaceAfter > bestFreeSpaceAfter)
                         {
@@ -143,7 +143,7 @@ namespace VMASharp.Defragmentation
 
                     if (bestFreeSpaceAfter >= Helpers.MinFreeSuballocationSizeToRegister)
                     {
-                        ulong alignmentPlusSize = (destOffset - bestSpace.Offset) + size;
+                        long alignmentPlusSize = (destOffset - bestSpace.Offset) + size;
 
                         bestSpace.Offset += alignmentPlusSize;
                         bestSpace.Size -= alignmentPlusSize;
@@ -164,7 +164,7 @@ namespace VMASharp.Defragmentation
             private struct FreeSpace
             {
                 public int BlockInfoIndex;
-                public ulong Offset, Size;
+                public long Offset, Size;
             }
         }
     }

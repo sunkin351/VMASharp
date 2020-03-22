@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using VMASharp;
+
+using Silk.NET.Vulkan;
 
 namespace VMASharp.Defragmentation
 {
@@ -71,12 +72,12 @@ namespace VMASharp.Defragmentation
 
         private int CalcBlocksWithNonMovableCount()
         {
-
+            throw new NotImplementedException();
         }
 
         private static bool MoveMakesSense(int destBlockIndex, ulong destOffset, int sourceBlockIndex, ulong sourceOffset)
         {
-
+            throw new NotImplementedException();
         }
     }
 }

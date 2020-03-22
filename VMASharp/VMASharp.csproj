@@ -13,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Vulkan" Version="1.0.0" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="1.0.0" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="1.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="1.0.1" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="1.0.1" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="1.0.1" />
   </ItemGroup>
 
 </Project>

@@ -42,22 +42,8 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public override void Alloc(in AllocationRequest request, SuballocationType type, ulong allocSize, Allocation allocation)
-        {
-            throw new NotImplementedException();
-        }
 
         public override void CalcAllocationStatInfo(out StatInfo outInfo)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override Result CheckCorruption(object blockData)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override bool CreateAllocationRequest(uint currentFrame, uint frameInUseCount, ulong bufferImageGranularity, ulong allocSize, ulong allocAlignment, bool upperAddress, SuballocationType allocType, bool canMakeOtherLost, AllocationCreateFlags strategy, out AllocationRequest request)
         {
             throw new NotImplementedException();
         }
@@ -67,64 +53,79 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public override void FreeAtOffset(ulong offset)
+        public override void FreeAtOffset(long offset)
         {
             throw new NotImplementedException();
         }
 
-        public override uint MakeAllocationsLost(uint currentFrame, uint frameInUseCount)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override bool MakeRequestedAllocationsLost(uint currentFrame, uint frameInUseCount, ref AllocationRequest request)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override bool Validate()
+        public override void Validate()
         {
             throw new NotImplementedException();
         }
 
         private void DeleteNode(Node node)
         {
-
+            throw new NotImplementedException();
         }
 
         private bool ValidateNode(ref ValidationContext ctx, Node parent, Node curr, uint level, ulong levelNodeSize)
         {
-
+            throw new NotImplementedException();
         }
 
-        private uint AllocSizeToLevel(ulong allocSize)
+        private uint AllocSizeToLevel(long allocSize)
         {
-
+            throw new NotImplementedException();
         }
 
-        private ulong LevelToNodeSize(int level)
+        private long LevelToNodeSize(int level)
         {
             return this.usableSize >> level;
         }
 
         private void FreeAtOffset(Allocation allocation, ulong offset)
         {
-
+            throw new NotImplementedException();
         }
 
         private void CalcAllocationStatInfoNode(ref StatInfo outInfo, Node node, ulong levelNodeSize)
         {
-
+            throw new NotImplementedException();
         }
 
         private void AddToFreeListFront(uint level, Node node)
         {
-
+            throw new NotImplementedException();
         }
 
         private void RemoveFromFreeList(uint level, Node node)
         {
+            throw new NotImplementedException();
+        }
 
+        public override bool CreateAllocationRequest(int currentFrame, int frameInUseCount, long bufferImageGranularity, long allocSize, long allocAlignment, bool upperAddress, SuballocationType allocType, bool canMakeOtherLost, uint strategy, out AllocationRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool MakeRequestedAllocationsLost(int currentFrame, int frameInUseCount, ref AllocationRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int MakeAllocationsLost(int currentFrame, int frameInUseCount)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void CheckCorruption(IntPtr blockData)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Allocation Alloc(in AllocationRequest request, SuballocationType type, long allocSize)
+        {
+            throw new NotImplementedException();
         }
 
         private struct ValidationContext
