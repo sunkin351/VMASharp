@@ -51,7 +51,7 @@ namespace VMASharp
 
         public abstract void CheckCorruption(IntPtr blockData);
 
-        public abstract Allocation Alloc(in AllocationRequest request, SuballocationType type, long allocSize);
+        public abstract void Alloc(in AllocationRequest request, SuballocationType type, long allocSize, BlockAllocation allocation);
 
         public abstract void Free(Allocation allocation);
 

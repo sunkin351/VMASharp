@@ -66,7 +66,7 @@ namespace VMASharp
 
         internal CurrentBudgetData Budget = new CurrentBudgetData();
 
-        public VulkanMemoryAllocator(in VulkanAllocatorCreateInfo createInfo)
+        public VulkanMemoryAllocator(in VulkanMemoryAllocatorCreateInfo createInfo)
         {
             if (VkApi == null)
             {
@@ -115,7 +115,7 @@ namespace VMASharp
 
             if (this.VulkanAPIVersion == 0)
             {
-                //this.VulkanAPIVersion = Vk.Version_1_0;
+                this.VulkanAPIVersion = Vk.Version10;
             }
 
             VkApi.GetPhysicalDeviceProperties(createInfo.PhysicalDevice, out this.PhysicalDeviceProperties);
@@ -288,7 +288,12 @@ namespace VMASharp
 
                 var currFlags = this.MemoryType(memTypeIndex).PropertyFlags;
 
-                int currCost = BitOperations.PopCount((uint)(preferredFlags & ~currFlags)) + BitOperations.PopCount((uint)(currFlags & notPreferredFlags));
+                if ((requiredFlags & ~currFlags) != 0)
+                    continue;
+
+                int currCost = BitOperations.PopCount((uint)(preferredFlags & ~currFlags));
+                 
+                currCost += BitOperations.PopCount((uint)(currFlags & notPreferredFlags));
 
                 if (currCost < minCost)
                 {
@@ -305,19 +310,19 @@ namespace VMASharp
             return memoryTypeIndex;
         }
 
-        public Result FindMemoryTypeIndexForBufferInfo(in BufferCreateInfo bufferInfo, in AllocationCreateInfo allocInfo, out int memoryTypeIndex)
+        public int? FindMemoryTypeIndexForBufferInfo(in BufferCreateInfo bufferInfo, in AllocationCreateInfo allocInfo)
         {
             throw new NotImplementedException();
         }
 
-        public Result FindMemoryTypeIndexForImageInfo(in ImageCreateInfo imageInfo, in AllocationCreateInfo allocInfo, out int memoryTypeIndex)
+        public int? FindMemoryTypeIndexForImageInfo(in ImageCreateInfo imageInfo, in AllocationCreateInfo allocInfo)
         {
             throw new NotImplementedException();
         }
 
-        public Result AllocateMemory(in MemoryRequirements requirements, in AllocationCreateInfo createInfo, out Allocation allocInfo)
+        public Allocation AllocateMemory(in MemoryRequirements requirements, in AllocationCreateInfo createInfo)
         {
-            throw new NotImplementedException();
+            return this.AllocateMemory(in requirements, false, false, default, default, in createInfo, SuballocationType.Unknown);
         }
 
         public Allocation AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo)
@@ -366,19 +371,16 @@ namespace VMASharp
                 throw;
             }
             
-            if ((allocInfo.Flags & AllocationCreateFlags.DontBind) != 0)
+            if ((allocInfo.Flags & AllocationCreateFlags.DontBind) == 0)
             {
-                Debug.Assert(alloc != null);
+                res = alloc.BindBufferMemory(buffer);
 
-                try
-                {
-                    this.BindBufferMemory(alloc, 0, buffer, default);
-                }
-                catch
+                if (res != Result.Success)
                 {
                     VkApi.DestroyBuffer(this.Device, buffer, null);
                     alloc.Dispose();
-                    throw;
+
+                    throw new AllocationException("Unable to bind memory to buffer", res);
                 }
             }
 
@@ -427,15 +429,14 @@ namespace VMASharp
 
             if ((allocInfo.Flags & AllocationCreateFlags.DontBind) == 0)
             {
-                try
-                {
-                    this.BindImageMemory(alloc, 0, image, default);
-                }
-                catch
+                res = alloc.BindImageMemory(image);
+
+                if (res != Result.Success)
                 {
                     VkApi.DestroyImage(this.Device, image, null);
                     alloc.Dispose();
-                    throw;
+
+                    throw new AllocationException("Unable to Bind memory to image", res);
                 }
             }
 
@@ -717,7 +718,7 @@ namespace VMASharp
 
                 AllocationCreateInfo infoForPool = createInfo;
 
-                if ((createInfo.Flags & AllocationCreateFlags.Mapped) != 0 && !this.MemoryType(memoryTypeIndex).PropertyFlags.HasFlag(MemoryPropertyFlags.MemoryPropertyHostVisibleBit))
+                if ((createInfo.Flags & AllocationCreateFlags.Mapped) != 0 && (this.MemoryType(memoryTypeIndex).PropertyFlags & MemoryPropertyFlags.MemoryPropertyHostVisibleBit) == 0)
                 {
                     infoForPool.Flags &= ~AllocationCreateFlags.Mapped;
                 }
@@ -774,11 +775,6 @@ namespace VMASharp
             }
 
             this.Budget.RemoveAllocation(this.MemoryTypeIndexToHeapIndex(allocation.MemoryTypeIndex), allocation.Size);
-        }
-
-        internal void FreeMemory(Allocation[] allocations)
-        {
-            throw new NotImplementedException();
         }
 
         public Stats CalculateStats()
@@ -1038,22 +1034,141 @@ namespace VMASharp
 
         internal Result AllocateVulkanMemory(in MemoryAllocateInfo allocInfo, out DeviceMemory memory)
         {
-            throw new NotImplementedException();
+            int heapIndex = this.MemoryTypeIndexToHeapIndex((int)allocInfo.MemoryTypeIndex);
+            ref var budgetData = ref this.Budget.BudgetData[heapIndex];
+
+            if ((this.HeapSizeLimitMask & (1u << heapIndex)) != 0)
+            {
+                long heapSize, blockBytes, blockBytesAfterAlloc;
+
+                heapSize = (long)this.MemoryHeap(heapIndex).Size;
+
+                do
+                {
+                    blockBytes = budgetData.BlockBytes;
+                    blockBytesAfterAlloc = blockBytes + (long)allocInfo.AllocationSize;
+
+                    if (blockBytesAfterAlloc > heapSize)
+                    {
+                        throw new AllocationException("Budget limit reached for heap index " + heapIndex, Result.ErrorOutOfDeviceMemory);
+                    }
+                }
+                while (Interlocked.CompareExchange(ref budgetData.BlockBytes, blockBytesAfterAlloc, blockBytes) != blockBytes);
+            }
+            else
+            {
+                Interlocked.Add(ref budgetData.BlockBytes, (long)allocInfo.AllocationSize);
+            }
+
+            fixed (MemoryAllocateInfo* pInfo = &allocInfo)
+            fixed (DeviceMemory* pMemory = &memory)
+            {
+                var res = VkApi.AllocateMemory(this.Device, pInfo, null, pMemory);
+
+                if (res == Result.Success)
+                {
+                    Interlocked.Increment(ref this.Budget.OperationsSinceBudgetFetch);
+                }
+                else
+                {
+                    Interlocked.Add(ref budgetData.BlockBytes, -(long)allocInfo.AllocationSize);
+                }
+
+                return res;
+            }
         }
 
-        internal Result FreeVulkanMemory(int memoryType, long size, DeviceMemory memory)
+        internal void FreeVulkanMemory(int memoryType, long size, DeviceMemory memory)
         {
-            throw new NotImplementedException();
+            VkApi.FreeMemory(this.Device, memory, null);
+
+            Interlocked.Add(ref this.Budget.BudgetData[this.MemoryTypeIndexToHeapIndex(memoryType)].BlockBytes, -size);
         }
 
-        internal Result BindVulkanBuffer(DeviceMemory memory, long offset, Buffer buffer, IntPtr next)
+        internal Result BindVulkanBuffer(Buffer buffer, DeviceMemory memory, long offset, void* pNext)
         {
-            throw new NotImplementedException();
+            if (pNext != null)
+            {
+                BindBufferMemoryInfo info;
+
+                if (this.VulkanAPIVersion >= Vk.Version11)
+                {
+                    info = new BindBufferMemoryInfo
+                    {
+                        SType = StructureType.BindBufferMemoryInfo,
+                        PNext = pNext,
+                        Buffer = buffer,
+                        Memory = memory,
+                        MemoryOffset = (ulong)offset
+                    };
+
+                    return VkApi.BindBufferMemory2(this.Device, 1, &info);
+                }
+                else if (this.UseHkrBindMemory2 && this.BindMemory2 != null)
+                {
+                    info = new BindBufferMemoryInfo
+                    {
+                        SType = StructureType.BindBufferMemoryInfo,
+                        PNext = (void*)pNext,
+                        Buffer = buffer,
+                        Memory = memory,
+                        MemoryOffset = (ulong)offset
+                    };
+
+                    return this.BindMemory2.BindBufferMemory2(this.Device, 1, &info);
+                }
+                else
+                {
+                    return Result.ErrorExtensionNotPresent;
+                }
+            }
+            else
+            {
+                return VkApi.BindBufferMemory(this.Device, buffer, memory, (ulong)offset);
+            }
         }
 
-        internal Result BindVulkanImage(DeviceMemory memory, long offset, Image image, IntPtr next)
+        internal Result BindVulkanImage(Image image, DeviceMemory memory, long offset, void* pNext)
         {
-            throw new NotImplementedException();
+            if (pNext != default)
+            {
+                BindImageMemoryInfo info;
+
+                if (this.VulkanAPIVersion >= Vk.Version11)
+                {
+                    info = new BindImageMemoryInfo
+                    {
+                        SType = StructureType.BindBufferMemoryInfo,
+                        PNext = pNext,
+                        Image = image,
+                        Memory = memory,
+                        MemoryOffset = (ulong)offset
+                    };
+
+                    return VkApi.BindImageMemory2(this.Device, 1, &info);
+                }
+                else if (this.UseHkrBindMemory2 && this.BindMemory2 != null)
+                {
+                    info = new BindImageMemoryInfo
+                    {
+                        SType = StructureType.BindBufferMemoryInfo,
+                        PNext = (void*)pNext,
+                        Image = image,
+                        Memory = memory,
+                        MemoryOffset = (ulong)offset
+                    };
+
+                    return this.BindMemory2.BindImageMemory2(this.Device, 1, &info);
+                }
+                else
+                {
+                    return Result.ErrorExtensionNotPresent;
+                }
+            }
+            else
+            {
+                return VkApi.BindImageMemory(this.Device, image, memory, (ulong)offset);
+            }
         }
 
         internal Result Map(Allocation allocation, out IntPtr pData)
@@ -1062,16 +1177,6 @@ namespace VMASharp
         }
 
         internal void Unmap(Allocation allocation)
-        {
-            throw new NotImplementedException();
-        }
-
-        internal Result BindBufferMemory(Allocation allocation, long allocationLocalOffset, Buffer buffer, IntPtr pNext)
-        {
-            throw new NotImplementedException();
-        }
-
-        internal Result BindImageMemory(Allocation allocation, long allocationLocalOffset, Image buffer, IntPtr pNext)
         {
             throw new NotImplementedException();
         }
@@ -1418,9 +1523,27 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
+        private const uint AMDVendorID = 0x1002;
+
         private uint CalculateGlobalMemoryTypeBits()
         {
-            throw new NotImplementedException();
+            Debug.Assert(this.MemoryTypeCount > 0);
+
+            uint memoryTypeBits = uint.MaxValue;
+
+            if (this.PhysicalDeviceProperties.VendorID == AMDVendorID && !this.UseAMDDeviceCoherentMemory)
+            {
+                // Exclude memory types that have VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD.
+                for (int index = 0; index < this.MemoryTypeCount; ++index)
+                {
+                    if ((this.MemoryType(index).PropertyFlags & MemoryPropertyFlags.MemoryPropertyDeviceCoherentBitAmd) != 0)
+                    {
+                        memoryTypeBits &= ~(1u << index);
+                    }
+                }
+            }
+
+            return memoryTypeBits;
         }
 
         private void UpdateVulkanBudget()

@@ -64,10 +64,8 @@ namespace VMASharp
             this.freeSuballocationsBySize.Add(node);
         }
 
-        public override Allocation Alloc(in AllocationRequest request, SuballocationType type, long allocSize)
+        public override void Alloc(in AllocationRequest request, SuballocationType type, long allocSize, BlockAllocation allocation)
         {
-            throw new NotImplementedException();
-
             Debug.Assert(request.Type == AllocationRequestType.Normal);
             Debug.Assert(request.Item != null);
             Debug.Assert(object.ReferenceEquals(request.Item.List, this.suballocations));
@@ -78,6 +76,7 @@ namespace VMASharp
             Debug.Assert(request.Offset >= suballoc.Offset);
 
             long paddingBegin = request.Offset - suballoc.Offset;
+
             Debug.Assert(suballoc.Size >= paddingBegin + allocSize);
 
             long paddingEnd = suballoc.Size - paddingBegin - allocSize;
@@ -87,7 +86,7 @@ namespace VMASharp
             suballoc.Offset = request.Offset;
             suballoc.Size = allocSize;
             suballoc.Type = type;
-            //suballoc.Allocation
+            suballoc.Allocation = allocation;
 
             if (paddingEnd > 0)
             {
@@ -350,10 +349,7 @@ namespace VMASharp
 
         public override void Validate()
         {
-            if (this.suballocations.Count == 0)
-            {
-                throw new ValidationFailedException();
-            }
+            Helpers.Validate(this.suballocations.Count > 0);
 
             long calculatedOffset = 0, calculatedSumFreeSize = 0;
             int calculatedFreeCount = 0, freeSuballocationsToRegister = 0;
@@ -362,19 +358,14 @@ namespace VMASharp
 
             foreach (Suballocation subAlloc in this.suballocations)
             {
-                if (subAlloc.Offset != calculatedOffset)
-                {
-                    throw new ValidationFailedException();
-                }
+                Helpers.Validate(subAlloc.Offset == calculatedOffset);
 
                 bool currFree = subAlloc.Type == SuballocationType.Free;
 
                 if (currFree)
                 {
-                    if (prevFree || subAlloc.Allocation != null)
-                    {
-                        throw new ValidationFailedException();
-                    }
+                    Helpers.Validate(!prevFree);
+                    Helpers.Validate(subAlloc.Allocation == null);
 
                     calculatedSumFreeSize += subAlloc.Size;
                     calculatedFreeCount += 1;
@@ -384,63 +375,44 @@ namespace VMASharp
                         freeSuballocationsToRegister += 1;
                     }
 
-                    if (subAlloc.Size < Helpers.DebugMargin)
-                    {
-                        throw new ValidationFailedException();
-                    }
+                    Helpers.Validate(subAlloc.Size >= Helpers.DebugMargin);
                 }
                 else
                 {
-                    if (subAlloc.Allocation == null)
-                    {
-                        throw new ValidationFailedException();
-                    }
-
-                    if (subAlloc.Allocation.Offset != subAlloc.Offset || subAlloc.Allocation.Size != subAlloc.Size)
-                    {
-                        throw new ValidationFailedException();
-                    }
-
-                    if (Helpers.DebugMargin != 0 && !prevFree)
-                    {
-                        throw new ValidationFailedException();
-                    }
+                    Helpers.Validate(subAlloc.Allocation != null);
+                    Helpers.Validate(subAlloc.Allocation!.Offset == subAlloc.Offset);
+                    Helpers.Validate(subAlloc.Allocation.Size == subAlloc.Size);
+                    Helpers.Validate(Helpers.DebugMargin == 0 || prevFree);
                 }
 
                 calculatedOffset += subAlloc.Size;
                 prevFree = currFree;
             }
 
-            if (this.freeSuballocationsBySize.Count != freeSuballocationsToRegister)
-            {
-                throw new ValidationFailedException();
-            }
-
-            long lastSize = 0;
-            foreach (var node in this.freeSuballocationsBySize)
-            {
-                var item = node.Value;
-
-                if (item.Type != SuballocationType.Free || item.Size < lastSize)
-                {
-                    throw new ValidationFailedException();
-                }
-
-                lastSize = item.Size;
-            }
-
+            Helpers.Validate(this.freeSuballocationsBySize.Count == freeSuballocationsToRegister);
+            
             this.ValidateFreeSuballocationList();
 
-            if (calculatedOffset != this.Size || calculatedSumFreeSize != this.sumFreeSize || calculatedFreeCount != this.freeCount)
-            {
-                throw new ValidationFailedException();
-            }
+            Helpers.Validate(calculatedOffset == this.Size);
+            Helpers.Validate(calculatedSumFreeSize == this.sumFreeSize);
+            Helpers.Validate(calculatedFreeCount == this.freeCount);
         }
         
         [Conditional("DEBUG")]
         private void ValidateFreeSuballocationList()
         {
-            throw new NotImplementedException();
+            long lastSize = 0;
+
+            for (int i = 0, count = this.freeSuballocationsBySize.Count; i < count; ++i)
+            {
+                var node = this.freeSuballocationsBySize[i];
+
+                Helpers.Validate(node.Value.Type == SuballocationType.Free);
+                Helpers.Validate(node.Value.Size >= Helpers.MinFreeSuballocationSizeToRegister);
+                Helpers.Validate(node.Value.Size >= lastSize);
+
+                lastSize = node.Value.Size;
+            }
         }
 
         private bool CheckAllocation(int currentFrame, int frameInUseCount, long BufferImageGranularity, long allocSize, long allocAlignment, SuballocationType allocType,
@@ -694,6 +666,9 @@ namespace VMASharp
 
             suballoc.Type = SuballocationType.Free;
             suballoc.Allocation = null;
+
+            this.freeCount += 1;
+            this.sumFreeSize += suballoc.Size;
 
             var nextItem = item.Next;
             var prevItem = item.Previous;

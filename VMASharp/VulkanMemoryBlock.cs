@@ -66,14 +66,7 @@ namespace VMASharp
 
             Debug.Assert(this.DeviceMemory.Handle != default);
 
-            var res = this.Allocator.FreeVulkanMemory(this.MemoryTypeIndex, this.MetaData.Size, this.DeviceMemory);
-
-            Debug.Assert(res == Result.Success);
-
-            if (res != Result.Success)
-            {
-                //TODO: Write error handling
-            }
+            this.Allocator.FreeVulkanMemory(this.MemoryTypeIndex, this.MetaData.Size, this.DeviceMemory);
         }
 
         [Conditional("DEBUG")]
@@ -165,7 +158,7 @@ namespace VMASharp
             }
         }
 
-        public Result BindBufferMemory(Allocation allocation, long allocationLocalOffset, Buffer buffer, IntPtr pNext)
+        public unsafe Result BindBufferMemory(Allocation allocation, long allocationLocalOffset, Buffer buffer, void* pNext)
         {
             Debug.Assert(allocation is BlockAllocation blockAlloc && blockAlloc.Block == this);
 
@@ -175,11 +168,11 @@ namespace VMASharp
 
             lock (SyncLock)
             {
-                return this.Allocator.BindVulkanBuffer(this.DeviceMemory, memoryOffset, buffer, pNext);
+                return this.Allocator.BindVulkanBuffer(buffer, this.DeviceMemory, memoryOffset, pNext);
             }
         }
 
-        public Result BindImageMemory(Allocation allocation, long allocationLocalOffset, Image image, IntPtr pNext)
+        public unsafe Result BindImageMemory(Allocation allocation, long allocationLocalOffset, Image image, void* pNext)
         {
             Debug.Assert(allocation is BlockAllocation blockAlloc && blockAlloc.Block == this);
 
@@ -189,7 +182,7 @@ namespace VMASharp
 
             lock (this.SyncLock)
             {
-                return this.Allocator.BindVulkanImage(this.DeviceMemory, memoryOffset, image, pNext);
+                return this.Allocator.BindVulkanImage(image, this.DeviceMemory, memoryOffset, pNext);
             }
         }
     }

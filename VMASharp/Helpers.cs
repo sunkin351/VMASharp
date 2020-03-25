@@ -259,5 +259,13 @@ namespace VMASharp
         {
             Debug.Assert(ptr != default);
         }
+
+        public static void Validate(bool assertion)
+        {
+            if (!assertion)
+            {
+                throw new ValidationFailedException();
+            }
+        }
     }
 }

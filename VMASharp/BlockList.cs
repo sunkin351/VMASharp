@@ -338,7 +338,19 @@ namespace VMASharp
 
         private long CalcMaxBlockSize()
         {
-            throw new NotImplementedException();
+            long result = 0;
+
+            for (int i = this.blocks.Count - 1; i >= 0; --i)
+            {
+                result = Math.Max(result, this.blocks[i].MetaData.Size);
+
+                if (result >= this.PreferredBlockSize)
+                {
+                    break;
+                }
+            }
+
+            return result;
         }
 
         private Allocation AllocatePage(int currentFrame, long size, long alignment, in AllocationCreateInfo createInfo, SuballocationType suballocType)
@@ -585,7 +597,9 @@ namespace VMASharp
 
                         if (bestRequestBlock.MetaData.MakeRequestedAllocationsLost(currentFrame, this.FrameInUseCount, ref bestAllocRequest))
                         {
-                            alloc = bestRequestBlock.MetaData.Alloc(in bestAllocRequest, suballocType, size);
+                            var talloc = new BlockAllocation(this.Allocator, this.Allocator.CurrentFrameIndex);
+
+                            bestRequestBlock.MetaData.Alloc(in bestAllocRequest, suballocType, size, talloc);
 
                             this.UpdateHasEmptyBlock();
 
@@ -597,17 +611,17 @@ namespace VMASharp
                             }
                             catch
                             {
-                                alloc.Dispose();
+                                talloc.Dispose();
                                 throw;
                             }
 
-                            alloc.UserData = createInfo.UserData;
+                            talloc.UserData = createInfo.UserData;
 
                             this.Allocator.Budget.AddAllocation(this.Allocator.MemoryTypeIndexToHeapIndex(this.MemoryTypeIndex), size);
 
                             //Maybe put memory init and corruption detection here
 
-                            return alloc;
+                            return talloc;
                         }
                     }
                     else
@@ -631,7 +645,9 @@ namespace VMASharp
             bool isUpperAddress = (flags & AllocationCreateFlags.UpperAddress) != 0;
             bool mapped = (flags & AllocationCreateFlags.Mapped) != 0;
 
-            if (block.MetaData.CreateAllocationRequest(currentFrame, this.FrameInUseCount, this.BufferImageGranularity, size, alignment, isUpperAddress, suballocType, false, strategy, out var request))
+            if (block.MetaData.CreateAllocationRequest(currentFrame, this.FrameInUseCount, this.BufferImageGranularity,
+                                                       size, alignment, isUpperAddress, suballocType, false, strategy,
+                                                       out var request))
             {
                 Debug.Assert(request.ItemsToMakeLostCount == 0);
 
@@ -640,8 +656,13 @@ namespace VMASharp
                     block.Map(1);
                 }
 
-                var allocation = block.MetaData.Alloc(in request, suballocType, size);
+                var allocation = new BlockAllocation(this.Allocator, this.Allocator.CurrentFrameIndex);
+                
+                block.MetaData.Alloc(in request, suballocType, size, allocation);
 
+                allocation.InitBlockAllocation(block, request.Offset, alignment, size, this.MemoryTypeIndex,
+                                               suballocType, mapped, (flags & AllocationCreateFlags.CanBecomeLost) != 0);
+                
                 this.UpdateHasEmptyBlock();
 
                 block.Validate();

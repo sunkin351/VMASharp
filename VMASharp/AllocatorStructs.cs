@@ -6,7 +6,7 @@ using Silk.NET.Vulkan;
 
 namespace VMASharp
 {
-    public struct VulkanAllocatorCreateInfo
+    public struct VulkanMemoryAllocatorCreateInfo
     {
         /// <summary>
         /// Flags for created allocator

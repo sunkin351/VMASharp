@@ -12,10 +12,11 @@ namespace VMASharp
         internal DeviceMemory memory;
         internal IntPtr mappedData;
 
-        public DedicatedAllocation(VulkanMemoryAllocator allocator, int memTypeIndex, DeviceMemory memory, SuballocationType suballocType, IntPtr mappedData, long size) : base(allocator, memTypeIndex, size)
+        public DedicatedAllocation(VulkanMemoryAllocator allocator, int memTypeIndex, DeviceMemory memory, SuballocationType suballocType, IntPtr mappedData, long size) : base(allocator, 0)
         {
             this.memory = memory;
             this.mappedData = mappedData;
+            this.memoryTypeIndex = memTypeIndex;
         }
 
         public override DeviceMemory Memory => this.memory;
@@ -89,7 +90,12 @@ namespace VMASharp
             stats.AllocationSizeMin = stats.AllocationSizeMax = this.Size;
         }
 
-        public override Result BindImageMemory(Image image, long allocationLocalOffset = 0, IntPtr pNext = default)
+        public override IntPtr Map()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Unmap()
         {
             throw new NotImplementedException();
         }

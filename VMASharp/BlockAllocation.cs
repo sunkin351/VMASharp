@@ -11,13 +11,11 @@ namespace VMASharp
     {
         internal VulkanMemoryBlock Block;
         internal long offset;
+        internal SuballocationType suballocationType;
         internal bool canBecomeLost;
 
-        public BlockAllocation(VulkanMemoryAllocator allocator, int currentFrameIndex, uint memTypeIndex, VulkanMemoryBlock block, long offset, bool canBecomeLost) : base(allocator, currentFrameIndex, memTypeIndex)
+        public BlockAllocation(VulkanMemoryAllocator allocator, int currentFrameIndex) : base(allocator, currentFrameIndex)
         {
-            this.Block = block;
-            this.offset = offset;
-            this.canBecomeLost = canBecomeLost;
         }
 
         public override DeviceMemory Memory
@@ -54,7 +52,14 @@ namespace VMASharp
 
         internal void InitBlockAllocation(VulkanMemoryBlock block, long offset, long alignment, long size, int memoryTypeIndex, SuballocationType subType, bool mapped, bool canBecomeLost)
         {
-
+            this.Block = block;
+            this.offset = offset;
+            this.alignment = alignment;
+            this.Size = size;
+            this.memoryTypeIndex = memoryTypeIndex;
+            this.mapCount = mapped ? int.MinValue : 0;
+            this.suballocationType = subType;
+            this.canBecomeLost = canBecomeLost;
         }
 
         internal void ChangeAllocation(VulkanMemoryBlock block, long offset)
@@ -72,9 +77,10 @@ namespace VMASharp
 
                 this.Block.Unmap(mapRefCount);
                 block.Map(mapRefCount);
+
+                this.Block = block;
             }
 
-            this.Block = block;
             this.Offset = offset;
         }
 
@@ -102,9 +108,25 @@ namespace VMASharp
             }
         }
 
-        public override Result BindImageMemory(Image image, long allocationLocalOffset, IntPtr pNext)
+        public override IntPtr Map()
         {
-            return this.Block.BindImageMemory(this, allocationLocalOffset, image, pNext);
+            if (this.CanBecomeLost)
+            {
+                throw new InvalidOperationException("Cannot map an allocation that can become lost");
+            }
+
+            var data = this.Block.Map(1);
+
+            data = new IntPtr(data.ToInt64() + this.Offset);
+
+            this.BlockAllocMap();
+
+            return data;
+        }
+
+        public override void Unmap()
+        {
+            throw new NotImplementedException();
         }
     }
 }

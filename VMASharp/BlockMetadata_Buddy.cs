@@ -123,7 +123,7 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public override Allocation Alloc(in AllocationRequest request, SuballocationType type, long allocSize)
+        public override void Alloc(in AllocationRequest request, SuballocationType type, long allocSize, BlockAllocation allocation)
         {
             throw new NotImplementedException();
         }

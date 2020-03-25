@@ -1,4 +1,6 @@
-﻿using System;
+﻿#pragma warning disable CA1063
+
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
@@ -14,12 +16,9 @@ namespace VMASharp
     {
         protected static Vk VkApi => VulkanMemoryAllocator.VkApi;
 
-        private long alignment;
-        private long size;
-        private object? userData;
+        protected long alignment;
         private int lastUseFrameIndex;
-        private int memoryTypeIndex;
-        private SuballocationType suballocationType;
+        protected int memoryTypeIndex;
         protected int mapCount;
         private bool LostOrDisposed = false;
 
@@ -65,17 +64,16 @@ namespace VMASharp
 
         internal long Alignment => this.alignment;
 
-        internal Allocation(VulkanMemoryAllocator allocator, int memTypeIndex, long size)
+        public object? UserData { get; set; }
+
+        internal Allocation(VulkanMemoryAllocator allocator, int currentFrameIndex)
         {
             this.Allocator = allocator;
-            this.memoryTypeIndex = memTypeIndex;
-            this.Size = size;
+            this.lastUseFrameIndex = currentFrameIndex;
         }
 
 
         public abstract IntPtr MappedData { get; }
-
-        public object? UserData { get; set; }
 
         internal VulkanMemoryAllocator Allocator { get; }
 
@@ -84,51 +82,51 @@ namespace VMASharp
             if (!this.LostOrDisposed)
             {
                 this.Allocator.FreeMemory(this);
+                LostOrDisposed = true;
             }
         }
 
         public Result BindBufferMemory(Buffer buffer)
         {
             Debug.Assert(this.Offset >= 0);
-            return VkApi.BindBufferMemory(this.Allocator.Device, buffer, this.Memory, (ulong)this.Offset);
+
+            return this.Allocator.BindVulkanBuffer(buffer, this.Memory, this.Offset, null);
         }
 
-        public unsafe Result BindBufferMemory2(Buffer buffer, long allocationLocalOffset, IntPtr pNext)
+        public unsafe Result BindBufferMemory(Buffer buffer, long allocationLocalOffset, IntPtr pNext)
         {
-            return BindBufferMemory2(buffer, allocationLocalOffset, (void*)pNext);
+            return this.BindBufferMemory(buffer, allocationLocalOffset, (void*)pNext);
         }
 
-        public unsafe Result BindBufferMemory2(Buffer buffer, long allocationLocalOffset, void* pNext)
+        public unsafe Result BindBufferMemory(Buffer buffer, long allocationLocalOffset, void* pNext = null)
         {
             if ((ulong)allocationLocalOffset >= (ulong)this.Size)
             {
                 throw new ArgumentOutOfRangeException(nameof(allocationLocalOffset));
             }
 
-            BindBufferMemoryInfo info = new BindBufferMemoryInfo
-            {
-                SType = StructureType.BindBufferMemoryInfo,
-                PNext = pNext,
-                Buffer = buffer,
-                Memory = this.Memory,
-                MemoryOffset = (ulong)(allocationLocalOffset + this.Offset)
-            };
-
-            if (this.Allocator.VulkanAPIVersion >= Helpers.VulkanAPIVersion_1_1)
-            {
-                return VkApi.BindBufferMemory2(this.Allocator.Device, 1, &info);
-            }
-            else if (this.Allocator.BindMemory2 != null)
-            {
-                return this.Allocator.BindMemory2.BindBufferMemory2(this.Allocator.Device, 1, &info);
-            }
-            else
-            {
-                throw new InvalidOperationException("VK_KHR_bind_memory2 not specified or not found");
-            }
+            return this.Allocator.BindVulkanBuffer(buffer, this.Memory, this.Offset + allocationLocalOffset, pNext);
         }
 
-        public abstract Result BindImageMemory(Image image, long allocationLocalOffset = 0, IntPtr pNext = default);
+        public unsafe Result BindImageMemory(Image image)
+        {
+            return this.Allocator.BindVulkanImage(image, this.Memory, this.Offset, null);
+        }
+
+        public unsafe Result BindImageMemory(Image image, long allocationLocalOffset, IntPtr pNext)
+        {
+            return this.BindImageMemory(image, allocationLocalOffset, (void*)pNext);
+        }
+
+        public unsafe Result BindImageMemory(Image image, long allocationLocalOffset, void* pNext = null)
+        {
+            if ((ulong)allocationLocalOffset >= (ulong)this.Size)
+            {
+                throw new ArgumentOutOfRangeException(nameof(allocationLocalOffset));
+            }
+
+            return this.Allocator.BindVulkanImage(image, this.Memory, this.Offset + allocationLocalOffset, pNext);
+        }
 
         internal bool MakeLost(int currentFrame, int frameInUseCount)
         {
@@ -216,5 +214,9 @@ namespace VMASharp
         {
 
         }
+
+        public abstract IntPtr Map();
+
+        public abstract void Unmap();
     }
 }
