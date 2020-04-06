@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
@@ -84,7 +84,7 @@ namespace VMASharp
 
         public bool IsCorruptedDetectionEnabled { get => false; }
 
-        public int BlockCount { get; }
+        public int BlockCount { get => blocks.Count; }
 
         public VulkanMemoryBlock this[int index]
         {

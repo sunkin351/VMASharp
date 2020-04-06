@@ -106,7 +106,7 @@ namespace VMASharp
                 Suballocation paddingSuballoc = new Suballocation()
                 {
                     Offset = request.Offset - paddingBegin,
-                    Size = paddingEnd,
+                    Size = paddingBegin,
                     Type = SuballocationType.Free
                 };
 

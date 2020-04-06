@@ -1,4 +1,4 @@
-﻿using Silk.NET.Vulkan;
+using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using System;
 using System.Collections.Generic;
@@ -391,8 +391,6 @@ namespace VMASharp
 
         public Image CreateImage(in ImageCreateInfo imageInfo, in AllocationCreateInfo allocInfo, out Allocation allocation)
         {
-            Allocation? alloc = null;
-
             if (imageInfo.Extent.Width == 0 ||
                 imageInfo.Extent.Height == 0 ||
                 imageInfo.Extent.Depth == 0 || 
@@ -404,6 +402,7 @@ namespace VMASharp
 
             Result res;
             Image image;
+            Allocation alloc;
 
             fixed (ImageCreateInfo* pInfo = &imageInfo)
             {
@@ -769,8 +768,11 @@ namespace VMASharp
                 }
                 else
                 {
-                    Debug.Assert(allocation is DedicatedAllocation);
-                    FreeDedicatedMemory(allocation);
+                    var dedicated = allocation as DedicatedAllocation;
+
+                    Debug.Assert(dedicated != null);
+
+                    FreeDedicatedMemory(dedicated);
                 }
             }
 
@@ -1508,14 +1510,24 @@ namespace VMASharp
             return alloc;
         }
 
-        private void FreeDedicatedMemory(Allocation allocation)
+        private void FreeDedicatedMemory(DedicatedAllocation allocation)
         {
-            if (!(allocation is DedicatedAllocation dedicated))
+            ref DedicatedAllocationHandler handler = ref this.DedicatedAllocations[allocation.MemoryTypeIndex];
+
+            handler.Mutex.EnterWriteLock();
+
+            try
             {
-                throw new ArgumentException("allocation is not a dedicated allocation");
+                bool success = handler.Allocations.Remove(allocation);
+
+                Debug.Assert(success);
+            }
+            finally
+            {
+                handler.Mutex.ExitWriteLock();
             }
 
-            throw new NotImplementedException();
+            FreeVulkanMemory(allocation.MemoryTypeIndex, allocation.Size, allocation.Memory);
         }
 
         private uint CalculateGpuDefragmentationMemoryTypeBits()

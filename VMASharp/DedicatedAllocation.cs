@@ -25,7 +25,7 @@ namespace VMASharp
 
         public override IntPtr MappedData => this.mapCount != 0 ? this.mappedData : default;
 
-        internal override bool CanBecomeLost => throw new NotImplementedException();
+        internal override bool CanBecomeLost => false;
 
         internal unsafe Result DedicatedAllocMap(out IntPtr pData)
         {
