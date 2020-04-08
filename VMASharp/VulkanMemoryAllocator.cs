@@ -548,7 +548,7 @@ namespace VMASharp
             {
                 req = new ImageMemoryRequirementsInfo2
                 {
-                    SType = StructureType.BufferMemoryRequirementsInfo2,
+                    SType = StructureType.ImageMemoryRequirementsInfo2,
                     Image = image
                 };
 
@@ -573,7 +573,7 @@ namespace VMASharp
             {
                 req = new ImageMemoryRequirementsInfo2
                 {
-                    SType = StructureType.BufferMemoryRequirementsInfo2,
+                    SType = StructureType.ImageMemoryRequirementsInfo2,
                     Image = image
                 };
 
