@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -89,7 +89,15 @@ namespace VulkanCube
                 throw new VMASharp.VulkanResultException("Failed to create swapchain!", res);
             }
 
-            uint count = imageCount;
+            uint count = 0;
+
+            res = VkSwapchain.GetSwapchainImages(this.Device, swapchain, &count, null);
+
+            if (res != Result.Success)
+            {
+                throw new VMASharp.VulkanResultException("Failed to retrieve swapchain images!", res);
+            }
+
             Image[] images = new Image[count];
 
             fixed (Image* pImages = images)
