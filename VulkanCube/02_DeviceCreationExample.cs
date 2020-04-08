@@ -94,13 +94,18 @@ namespace VulkanCube
 
             PhysicalDeviceFeatures features = default;
 
-            features.SampleRateShading = true;
-
             var extensionNames = SilkMarshal.MarshalStringArrayToPtr(RequiredDeviceExtensions);
+
+            PhysicalDeviceSeparateDepthStencilLayoutsFeatures depthStencilFeature = new PhysicalDeviceSeparateDepthStencilLayoutsFeatures
+            {
+                SType = StructureType.PhysicalDeviceSeparateDepthStencilLayoutsFeatures,
+                SeparateDepthStencilLayouts = true
+            };
 
             DeviceCreateInfo createInfo = new DeviceCreateInfo
             {
                 SType = StructureType.DeviceCreateInfo,
+                PNext = &depthStencilFeature,
                 QueueCreateInfoCount = infoCount,
                 PQueueCreateInfos = queueInfos,
                 EnabledExtensionCount = (uint)RequiredDeviceExtensions.Length,
