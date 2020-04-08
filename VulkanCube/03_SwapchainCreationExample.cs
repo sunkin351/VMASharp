@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -22,6 +22,11 @@ namespace VulkanCube
 
         public override void Dispose()
         {
+            for (int i = 0; i < this.SwapchainImages.Length; ++i)
+            {
+                VkApi.DestroyImageView(this.Device, this.SwapchainImages[i].View, null);
+            }
+
             this.VkSwapchain.DestroySwapchain(this.Device, this.Swapchain, null);
 
             base.Dispose();
