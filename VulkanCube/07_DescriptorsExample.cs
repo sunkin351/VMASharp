@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Numerics;
@@ -61,7 +61,8 @@ namespace VulkanCube
                 SType = StructureType.DescriptorPoolCreateInfo,
                 MaxSets = 1,
                 PoolSizeCount = 1,
-                PPoolSizes = &typeCount
+                PPoolSizes = &typeCount,
+                Flags = DescriptorPoolCreateFlags.DescriptorPoolCreateFreeDescriptorSetBit
             };
 
             DescriptorPool pool;

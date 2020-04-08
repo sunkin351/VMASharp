@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Silk.NET.Windowing.Common;
@@ -205,33 +205,49 @@ namespace VulkanCube
 
             var scissor = new Rect2D(default, SwapchainExtent);
 
-            var beginInfo = new CommandBufferBeginInfo(flags: default);
+            var beginInfo = new CommandBufferBeginInfo
+            {
+                SType = StructureType.CommandBufferBeginInfo
+            };
+
             var vertexBuffer = this.VertexBuffer;
             ulong offset = 0;
 
-            for (var i = 0; i < count; ++i)
+            fixed (DescriptorSet* pDescriptorSets = this.DescriptorSets)
             {
-                var cbuffer = this.DrawCommandBuffers[i];
+                uint setCount = (uint)this.DescriptorSets.Length;
+                
+                for (var i = 0; i < count; ++i)
+                {
+                    var cbuffer = this.DrawCommandBuffers[i];
 
-                BeginCommandBuffer(cbuffer);
+                    //Helper Method, begins command buffer recording
+                    BeginCommandBuffer(cbuffer);
 
-                renderPassInfo.Framebuffer = this.FrameBuffers[i];
+                    renderPassInfo.Framebuffer = this.FrameBuffers[i];
 
-                VkApi.CmdBeginRenderPass(cbuffer, &renderPassInfo, SubpassContents.Inline);
+                    //Begin Rendering commands
+                    VkApi.CmdBeginRenderPass(cbuffer, &renderPassInfo, SubpassContents.Inline);
 
-                VkApi.CmdBindPipeline(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipeline);
+                    //Bind Graphics pipeline, Descriptor sets, and vertex buffers
+                    VkApi.CmdBindPipeline(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipeline);
 
-                VkApi.CmdBindVertexBuffers(cbuffer, 0, 1, &vertexBuffer, &offset);
+                    VkApi.CmdBindDescriptorSets(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipelineLayout, 0, setCount, pDescriptorSets, 0, null);
 
-                VkApi.CmdSetViewport(cbuffer, 0, 1, &viewport);
+                    VkApi.CmdBindVertexBuffers(cbuffer, 0, 1, &vertexBuffer, &offset);
 
-                VkApi.CmdSetScissor(cbuffer, 0, 1, &scissor);
+                    //Set Dynamic Pipeline state, in this case viewport and scissor
+                    VkApi.CmdSetViewport(cbuffer, 0, 1, &viewport);
+                    VkApi.CmdSetScissor(cbuffer, 0, 1, &scissor);
 
-                VkApi.CmdDraw(cbuffer, 3, 1, 0, 0);
+                    //Draw command
+                    VkApi.CmdDraw(cbuffer, 3, 1, 0, 0);
 
-                VkApi.CmdEndRenderPass(cbuffer);
+                    VkApi.CmdEndRenderPass(cbuffer);
 
-                EndCommandBuffer(cbuffer);
+                    //Helper method, ends command buffer recording
+                    EndCommandBuffer(cbuffer);
+                }
             }
         }
     }

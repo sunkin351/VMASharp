@@ -91,7 +91,7 @@ namespace VulkanCube
                 RasterizerDiscardEnable = Vk.False,
                 PolygonMode = PolygonMode.Fill,
                 LineWidth = 1.0f,
-                CullMode = CullModeFlags.CullModeBackBit,
+                CullMode = CullModeFlags.CullModeNone,
                 FrontFace = FrontFace.Clockwise,
                 DepthBiasEnable = Vk.False
             };

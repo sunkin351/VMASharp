@@ -24,8 +24,13 @@ namespace VulkanCube
         };
 
         public Vector3 Position;
-
         public Vector3 Color;
+
+        public Vertex(Vector3 position, Vector3 color)
+        {
+            this.Position = position;
+            this.Color = color;
+        }
     }
 
     public static class VertexData
@@ -49,5 +54,61 @@ namespace VulkanCube
             }
         };
 
+        public static Vertex[] CubeData = new Vertex[]
+        {
+            //Face 1
+            new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
+            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+
+            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+
+            //Face 2
+            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+
+            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new Vertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
+
+            //Face 3
+            new Vertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
+            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+
+            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+
+            //Face 4
+            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+
+            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
+
+            //Face 5
+            new Vertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
+            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+
+            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+
+            //Face 6
+            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+
+            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0))
+        };
     }
 }

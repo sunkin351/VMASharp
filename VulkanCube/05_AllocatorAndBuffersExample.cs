@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Numerics;
@@ -152,7 +152,7 @@ namespace VulkanCube
 
             Camera.UpdateMVP();
 
-            *(Matrix4x4*)allocation.MappedData = Camera.MVPMatrix;
+            *(Matrix4x4*)allocation.MappedData = Matrix4x4.Transpose(/*Camera.MVPMatrix*/ Matrix4x4.Identity);
 
             this.UniformBuffer = buffer;
             this.UniformAllocation = allocation;
