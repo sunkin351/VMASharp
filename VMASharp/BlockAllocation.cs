@@ -126,7 +126,8 @@ namespace VMASharp
 
         public override void Unmap()
         {
-            throw new NotImplementedException();
+            this.BlockAllocUnmap();
+            this.Block.Unmap(1);
         }
     }
 }
