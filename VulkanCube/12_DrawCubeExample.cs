@@ -241,7 +241,7 @@ namespace VulkanCube
                     VkApi.CmdSetScissor(cbuffer, 0, 1, &scissor);
 
                     //Draw command
-                    VkApi.CmdDraw(cbuffer, 3, 1, 0, 0);
+                    VkApi.CmdDraw(cbuffer, this.VertexCount, 1, 0, 0);
 
                     VkApi.CmdEndRenderPass(cbuffer);
 

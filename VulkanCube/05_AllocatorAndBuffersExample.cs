@@ -18,6 +18,7 @@ namespace VulkanCube
 
         protected Buffer VertexBuffer;
         protected Allocation VertexAllocation;
+        protected uint VertexCount;
 
         protected CameraUniform Camera = new CameraUniform();
 
@@ -116,6 +117,7 @@ namespace VulkanCube
 
             this.VertexBuffer = buffer;
             this.VertexAllocation = allocation;
+            this.VertexCount = (uint)data.Length;
         }
 
         private void CreateUniformBuffer() //Simpler setup from the Vertex buffer because there is no staging or device copying
