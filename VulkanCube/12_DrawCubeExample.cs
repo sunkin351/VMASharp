@@ -181,7 +181,7 @@ namespace VulkanCube
                     Float32_2 = 0,
                     Float32_3 = 1
                 }),
-                new ClearValue(depthStencil: new ClearDepthStencilValue())
+                new ClearValue(depthStencil: new ClearDepthStencilValue(1.0f))
             };
 
             var renderPassInfo = new RenderPassBeginInfo

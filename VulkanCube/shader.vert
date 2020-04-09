@@ -4,7 +4,8 @@
 
 layout(binding=0, set=0) uniform Uniforms
 {
-    mat4 MVP;
+    layout(row_major) mat4 View;
+    layout(row_major) mat4 Projection;
 };
 
 layout(location = 0) in vec3 position;
@@ -13,6 +14,7 @@ layout(location = 0) out vec3 fragColor;
 
 void main()
 {
-    gl_Position = vec4(position, 1) * MVP;
+    gl_Position = vec4(position, 1) * View;
+
     fragColor = color;
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using VMASharp;
 
@@ -6,8 +6,16 @@ namespace VulkanCube
 {
     public class CameraUniform
     {
-        private Matrix4x4 Projection, View, Model = Matrix4x4.Identity, Clip, MVP;
+        private Matrix4x4 Projection, View, Model, Clip, MVP;
         private bool Initialized = false;
+
+        public CameraUniform()
+        {
+            Projection = Matrix4x4.Identity;
+            View = Matrix4x4.Identity;
+            Model = Matrix4x4.Identity;
+            Clip = Matrix4x4.Identity;
+        }
 
         public ref readonly Matrix4x4 MVPMatrix { get => ref MVP; }
 

@@ -79,7 +79,7 @@ namespace VulkanCube
 
         private void CreateVertexBuffer()
         {
-            Vertex[] data = VertexData.TriangleData;
+            Vertex[] data = VertexData.CubeData;
             
             uint graphicsFamily = this.QueueIndices.GraphicsFamily.Value;
 
@@ -120,12 +120,14 @@ namespace VulkanCube
             this.VertexCount = (uint)data.Length;
         }
 
+        protected uint UniformBufferSize = (uint)sizeof(Matrix4x4) * 2;
+
         private void CreateUniformBuffer() //Simpler setup from the Vertex buffer because there is no staging or device copying
         {
             BufferCreateInfo bufferInfo = new BufferCreateInfo
             {
                 SType = StructureType.BufferCreateInfo,
-                Size = (uint)sizeof(Matrix4x4),
+                Size = this.UniformBufferSize,
                 Usage = BufferUsageFlags.BufferUsageUniformBufferBit,
                 SharingMode = SharingMode.Exclusive
             };
@@ -133,7 +135,6 @@ namespace VulkanCube
             //Allow this to be updated every frame
             AllocationCreateInfo allocInfo = new AllocationCreateInfo
             {
-                Flags = AllocationCreateFlags.Mapped,
                 Usage = MemoryUsage.CPU_To_GPU,
                 RequiredFlags = MemoryPropertyFlags.MemoryPropertyHostVisibleBit
             };
@@ -141,20 +142,27 @@ namespace VulkanCube
             //Binds buffer to allocation for you
             var buffer = this.Allocator.CreateBuffer(bufferInfo, allocInfo, out var allocation);
 
-            Camera.PerspectiveDegrees(45f, 1f, 0.1f, 100f);
-            Camera.LookAt(new Vector3(-5, 3, -10), new Vector3(0), new Vector3(0, 1, 0));
+            var lookAt = Matrix4x4.CreateLookAt(new Vector3(0.5f, 0.5f, 0.75f), new Vector3(0, 0, 0), new Vector3(0, -1, 0));
 
-            //Model is set to be default Identity
-            //Camera.SetModel(Matrix4x4.Identity);
+            var scale = Matrix4x4.CreateScale(0.25f);
 
-            Camera.SetClip(new Matrix4x4(1.0f, 0.0f, 0.0f, 0.0f,
-                                         0.0f, -1.0f, 0.0f, 0.0f,
-                                         0.0f, 0.0f, 0.5f, 0.0f,
-                                         0.0f, 0.0f, 0.5f, 1.0f));
+            var translation = Matrix4x4.CreateTranslation(0, 0, 0.75f);
 
-            Camera.UpdateMVP();
+            //var Projection = Matrix4x4.CreatePerspectiveFieldOfView(1.0f, (float)this.SwapchainExtent.Width / this.SwapchainExtent.Height, 0.5f, 100f);
 
-            *(Matrix4x4*)allocation.MappedData = Matrix4x4.Transpose(/*Camera.MVPMatrix*/ Matrix4x4.Identity);
+            //Camera.SetClip(new Matrix4x4(1.0f, 0.0f, 0.0f, 0.0f,
+            //                             0.0f, -1.0f, 0.0f, 0.0f,
+            //                             0.0f, 0.0f, 0.5f, 0.0f,
+            //                             0.0f, 0.0f, 0.5f, 1.0f));
+
+            allocation.Map();
+
+            Matrix4x4* ptr = (Matrix4x4*)allocation.MappedData;
+
+            ptr[0] = lookAt * scale * translation; //View Matrix
+            ptr[1] = Matrix4x4.Identity; //Projection Matrix
+
+            allocation.Unmap();
 
             this.UniformBuffer = buffer;
             this.UniformAllocation = allocation;

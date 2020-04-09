@@ -22,7 +22,7 @@ namespace VulkanCube
             {
                 Buffer = UniformBuffer,
                 Offset = 0,
-                Range = (uint)sizeof(Matrix4x4)
+                Range = this.UniformBufferSize
             };
 
             WriteDescriptorSet write = new WriteDescriptorSet
