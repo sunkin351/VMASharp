@@ -4,8 +4,9 @@
 
 layout(binding=0, set=0) uniform Uniforms
 {
-    layout(row_major) mat4 View;
-    layout(row_major) mat4 Projection;
+    //Matrices generated in C#'s Matrix4x4 are row_major, Transpose them to column_major for speed
+    layout(row_major) mat4 MVP;
+    layout(row_major) mat4 Model;
 };
 
 layout(location = 0) in vec3 position;
@@ -14,7 +15,9 @@ layout(location = 0) out vec3 fragColor;
 
 void main()
 {
-    gl_Position = vec4(position, 1) * View;
+    gl_Position = vec4(position, 1) * Model;
+
+    gl_Position = gl_Position * MVP;
 
     fragColor = color;
 }

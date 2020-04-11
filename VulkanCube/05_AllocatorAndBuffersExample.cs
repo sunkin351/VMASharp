@@ -132,35 +132,32 @@ namespace VulkanCube
                 SharingMode = SharingMode.Exclusive
             };
 
-            //Allow this to be updated every frame
+            // Allow this to be updated every frame
             AllocationCreateInfo allocInfo = new AllocationCreateInfo
             {
                 Usage = MemoryUsage.CPU_To_GPU,
                 RequiredFlags = MemoryPropertyFlags.MemoryPropertyHostVisibleBit
             };
 
-            //Binds buffer to allocation for you
+            // Binds buffer to allocation for you
             var buffer = this.Allocator.CreateBuffer(bufferInfo, allocInfo, out var allocation);
 
-            var lookAt = Matrix4x4.CreateLookAt(new Vector3(0.5f, 0.5f, 0.75f), new Vector3(0, 0, 0), new Vector3(0, -1, 0));
+            // Camera/MVP Matrix calculation
+            Camera.LookAt(new Vector3(2f, 2f, -5f), new Vector3(0, 0, 0), new Vector3(0, 1, 0));
 
-            var scale = Matrix4x4.CreateScale(0.25f);
+            var radFov = MathF.PI / 180f * 45f;
+            var aspect = (float)this.SwapchainExtent.Width / this.SwapchainExtent.Height;
 
-            var translation = Matrix4x4.CreateTranslation(0, 0, 0.75f);
+            Camera.Perspective(radFov, aspect, 0.5f, 100f);
 
-            //var Projection = Matrix4x4.CreatePerspectiveFieldOfView(1.0f, (float)this.SwapchainExtent.Width / this.SwapchainExtent.Height, 0.5f, 100f);
-
-            //Camera.SetClip(new Matrix4x4(1.0f, 0.0f, 0.0f, 0.0f,
-            //                             0.0f, -1.0f, 0.0f, 0.0f,
-            //                             0.0f, 0.0f, 0.5f, 0.0f,
-            //                             0.0f, 0.0f, 0.5f, 1.0f));
+            Camera.UpdateMVP();
 
             allocation.Map();
 
             Matrix4x4* ptr = (Matrix4x4*)allocation.MappedData;
 
-            ptr[0] = lookAt * scale * translation; //View Matrix
-            ptr[1] = Matrix4x4.Identity; //Projection Matrix
+            ptr[0] = Camera.MVPMatrix; // Camera Matrix
+            ptr[1] = Matrix4x4.Identity;         // Model Matrix
 
             allocation.Unmap();
 
