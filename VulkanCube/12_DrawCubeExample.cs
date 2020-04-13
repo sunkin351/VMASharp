@@ -229,20 +229,22 @@ namespace VulkanCube
                     //Begin Rendering commands
                     VkApi.CmdBeginRenderPass(cbuffer, &renderPassInfo, SubpassContents.Inline);
 
-                    //Bind Graphics pipeline, Descriptor sets, and vertex buffers
+                    //Bind Graphics pipeline, Descriptor sets, vertex and index buffers
                     VkApi.CmdBindPipeline(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipeline);
 
                     VkApi.CmdBindDescriptorSets(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipelineLayout, 0, setCount, pDescriptorSets, 0, null);
 
                     VkApi.CmdBindVertexBuffers(cbuffer, 0, 1, &vertexBuffer, &offset);
+                    VkApi.CmdBindIndexBuffer(cbuffer, this.IndexBuffer, 0, IndexType.Uint16);
 
                     //Set Dynamic Pipeline state, in this case viewport and scissor
                     VkApi.CmdSetViewport(cbuffer, 0, 1, &viewport);
                     VkApi.CmdSetScissor(cbuffer, 0, 1, &scissor);
 
                     //Draw command
-                    VkApi.CmdDraw(cbuffer, this.VertexCount, 1, 0, 0);
+                    VkApi.CmdDrawIndexed(cbuffer, this.IndexCount, 1, 0, 0, 0);
 
+                    //Ends the renderpass
                     VkApi.CmdEndRenderPass(cbuffer);
 
                     //Helper method, ends command buffer recording

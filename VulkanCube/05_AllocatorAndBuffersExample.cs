@@ -17,8 +17,11 @@ namespace VulkanCube
         protected readonly VulkanMemoryAllocator Allocator;
 
         protected Buffer VertexBuffer;
+        protected Buffer IndexBuffer;
         protected Allocation VertexAllocation;
+        protected Allocation IndexAllocation;
         protected uint VertexCount;
+        protected uint IndexCount;
 
         protected CameraUniform Camera = new CameraUniform();
 
@@ -32,6 +35,7 @@ namespace VulkanCube
             this.Allocator = CreateAllocator();
 
             CreateVertexBuffer();
+            CreateIndexBuffer();
             CreateUniformBuffer();
             CreateDepthBuffer();
         }
@@ -47,6 +51,9 @@ namespace VulkanCube
 
             VkApi.DestroyBuffer(this.Device, VertexBuffer, null);
             VertexAllocation.Dispose();
+
+            VkApi.DestroyBuffer(this.Device, IndexBuffer, null);
+            IndexAllocation.Dispose();
 
             Allocator.Dispose();
 
@@ -77,17 +84,15 @@ namespace VulkanCube
             return new VulkanMemoryAllocator(createInfo);
         }
 
-        private void CreateVertexBuffer()
+        private (Buffer, Allocation) CreateBufferObject<T>(BufferUsageFlags usageFlags, ReadOnlySpan<T> data) where T: unmanaged
         {
-            Vertex[] data = VertexData.CubeData;
-            
             uint graphicsFamily = this.QueueIndices.GraphicsFamily.Value;
 
             BufferCreateInfo bufferInfo = new BufferCreateInfo
             {
                 SType = StructureType.BufferCreateInfo,
-                Usage = BufferUsageFlags.BufferUsageVertexBufferBit | BufferUsageFlags.BufferUsageTransferDstBit,
-                Size = (uint)sizeof(Vertex) * (uint)data.Length,
+                Usage = usageFlags | BufferUsageFlags.BufferUsageTransferDstBit,
+                Size = (uint)sizeof(T) * (uint)data.Length,
                 SharingMode = SharingMode.Exclusive,
                 QueueFamilyIndexCount = 1,
                 PQueueFamilyIndices = &graphicsFamily
@@ -106,18 +111,32 @@ namespace VulkanCube
 
             var hostBuffer = this.Allocator.CreateBuffer(bufferInfo, allocInfo, out Allocation hostAllocation);
 
-            Span<Vertex> span = new Span<Vertex>(hostAllocation.MappedData.ToPointer(), data.Length);
-
-            data.CopyTo(span);
+            data.CopyTo(new Span<T>((void*)hostAllocation.MappedData, data.Length));
 
             TransferBufferData(hostBuffer, buffer, new BufferCopy(0, 0, bufferInfo.Size));
 
             hostAllocation.Dispose();
             VkApi.DestroyBuffer(this.Device, hostBuffer, null);
 
-            this.VertexBuffer = buffer;
-            this.VertexAllocation = allocation;
+            return (buffer, allocation);
+        }
+
+        private void CreateVertexBuffer()
+        {
+            Vertex[] data = VertexData.IndexedCubeData;
+
+            (this.VertexBuffer, this.VertexAllocation) = this.CreateBufferObject<Vertex>(BufferUsageFlags.BufferUsageVertexBufferBit, data);
+
             this.VertexCount = (uint)data.Length;
+        }
+
+        private void CreateIndexBuffer()
+        {
+            ushort[] data = VertexData.CubeIndexData;
+
+            (this.IndexBuffer, this.IndexAllocation) = this.CreateBufferObject<ushort>(BufferUsageFlags.BufferUsageIndexBufferBit, data);
+
+            this.IndexCount = (uint)data.Length;
         }
 
         protected uint UniformBufferSize = (uint)sizeof(Matrix4x4) * 2;
