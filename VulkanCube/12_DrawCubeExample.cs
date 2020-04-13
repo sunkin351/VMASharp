@@ -8,19 +8,19 @@ namespace VulkanCube
 {
     public sealed unsafe class DrawCubeExample : GraphicsPipelineExample
     {
-        private CommandBuffer[] DrawCommandBuffers;
+        const int MaxFramesInFlight = 2;
 
-        private Semaphore ImageAvailableSemaphore;
-        private Semaphore RenderFinishedSemaphore;
-        private Fence RenderFinishedFence;
+        private CommandBuffer[] SecondaryCommandBuffers;
 
-        private uint CurrentFrame = 0;
+        private readonly FrameCommandContext[] FrameContexts = new FrameCommandContext[MaxFramesInFlight];
+
+        private int CurrentFrame = 0;
 
         public DrawCubeExample() : base()
         {
-            CreateSyncObjects();
+            RecordSecondaryCommandBuffers();
 
-            RecordCommandBuffers();
+            InitializeFrameContexts();
         }
 
         public override void Run()
@@ -34,36 +34,49 @@ namespace VulkanCube
 
         public override void Dispose()
         {
-            fixed (CommandBuffer* cbuffers = DrawCommandBuffers)
+            var primarys = stackalloc CommandBuffer[MaxFramesInFlight];
+
+            for (int i = 0; i < MaxFramesInFlight; ++i)
             {
-                VkApi.FreeCommandBuffers(this.Device, this.CommandPool, (uint)DrawCommandBuffers.Length, cbuffers);
+                ref var ctx = ref this.FrameContexts[i];
+
+                primarys[i] = ctx.CmdBuffer;
+
+                VkApi.DestroyFence(this.Device, ctx.Fence, null);
+
+                VkApi.DestroySemaphore(this.Device, ctx.ImageAvailable, null);
+                VkApi.DestroySemaphore(this.Device, ctx.RenderFinished, null);
             }
 
-            VkApi.DestroySemaphore(this.Device, ImageAvailableSemaphore, null);
-            VkApi.DestroySemaphore(this.Device, RenderFinishedSemaphore, null);
-            VkApi.DestroyFence(this.Device, RenderFinishedFence, null);
+            VkApi.FreeCommandBuffers(this.Device, this.CommandPool, MaxFramesInFlight, primarys);
+
+            fixed (CommandBuffer* cbuffers = SecondaryCommandBuffers)
+            {
+                VkApi.FreeCommandBuffers(this.Device, this.CommandPool, (uint)FrameContexts.Length, cbuffers);
+            }
 
             base.Dispose();
         }
 
         private void DrawFrame(double dTime)
         {
-            //Wait for the previous render operation to finish
-            VkApi.WaitForFences(this.Device, 1, ref RenderFinishedFence, true, ulong.MaxValue);
+            ref var ctx = ref this.FrameContexts[this.CurrentFrame];
+
+            //Wait for a previous render operation to finish
+            VkApi.WaitForFences(this.Device, 1, ref ctx.Fence, true, ulong.MaxValue);
 
             //Acquire the next image index to render to, synchronize when its available
             uint nextImage = 0;
-            var res = this.VkSwapchain.AcquireNextImage(this.Device, this.Swapchain, ulong.MaxValue, this.ImageAvailableSemaphore, default, ref nextImage);
+            var res = this.VkSwapchain.AcquireNextImage(this.Device, this.Swapchain, ulong.MaxValue, ctx.ImageAvailable, default, ref nextImage);
 
             //Push semaphores, command buffer, and Pipeline Stage Flags to the stack to allow "fixed-less" addressing
 
-            Semaphore waitSemaphore = this.ImageAvailableSemaphore;
+            var waitSemaphore = ctx.ImageAvailable;
+            var signalSemaphore = ctx.RenderFinished; //This semaphore will be used to synchronize presentation of the rendered image.
 
             PipelineStageFlags waitStages = PipelineStageFlags.PipelineStageColorAttachmentOutputBit;
 
-            var signalSemaphore = this.RenderFinishedSemaphore; //This semaphore will be used to synchronize presentation of the rendered image.
-
-            var buffer = this.DrawCommandBuffers[nextImage];
+            var buffer = this.RecordPrimaryCommandBuffer(ctx.CmdBuffer, (int)nextImage); //Records primary command buffer on the fly
 
             //Fill out queue submit info
             SubmitInfo submitInfo = new SubmitInfo
@@ -79,12 +92,13 @@ namespace VulkanCube
             };
 
             //Reset Fence to unsignaled
-            VkApi.ResetFences(Device, 1, ref RenderFinishedFence);
+            VkApi.ResetFences(Device, 1, ref ctx.Fence);
 
             //Submit to Graphics queue
-            if (VkApi.QueueSubmit(GraphicsQueue, 1, &submitInfo, RenderFinishedFence) != Result.Success)
+            res = VkApi.QueueSubmit(GraphicsQueue, 1, &submitInfo, ctx.Fence);
+            if (res != Result.Success)
             {
-                throw new Exception("failed to submit draw command buffer!");
+                throw new VMASharp.VulkanResultException("Failed to submit draw command buffer!", res);
             }
 
             //
@@ -103,66 +117,24 @@ namespace VulkanCube
                 VkSwapchain.QueuePresent(PresentQueue, &presentInfo);
             }
 
-            //this.CurrentFrame = (this.CurrentFrame + 1) % (uint)this.SwapchainImageCount;
+            this.CurrentFrame = (this.CurrentFrame + 1) % MaxFramesInFlight;
         }
 
-        private void CreateSyncObjects()
+        private void RecordSecondaryCommandBuffers()
         {
-            SemaphoreCreateInfo semaphoreInfo = new SemaphoreCreateInfo
-            {
-                SType = StructureType.SemaphoreCreateInfo
-            };
+            const uint secondaryCommandBufferCount = 2;
 
-            FenceCreateInfo fenceInfo = new FenceCreateInfo
-            {
-                SType = StructureType.FenceCreateInfo,
-                Flags = FenceCreateFlags.FenceCreateSignaledBit
-            };
-
-            Semaphore sem1, sem2;
-            Fence fen;
-
-            var res = VkApi.CreateSemaphore(this.Device, &semaphoreInfo, null, &sem1);
-
-            if (res != Result.Success)
-            {
-                throw new VMASharp.VulkanResultException("Failed to create Semaphore!", res);
-            }
-
-            res = VkApi.CreateSemaphore(this.Device, &semaphoreInfo, null, &sem2);
-
-            if (res != Result.Success)
-            {
-                throw new VMASharp.VulkanResultException("Failed to create Semaphore!", res);
-            }
-
-            res = VkApi.CreateFence(this.Device, &fenceInfo, null, &fen);
-
-            if (res != Result.Success)
-            {
-                throw new VMASharp.VulkanResultException("Failed to create Fence!", res);
-            }
-
-            this.ImageAvailableSemaphore = sem1;
-            this.RenderFinishedSemaphore = sem2;
-            this.RenderFinishedFence = fen;
-        }
-
-        private void RecordCommandBuffers()
-        {
-            var count = this.SwapchainImageCount;
-
-            this.DrawCommandBuffers = new CommandBuffer[count];
+            this.SecondaryCommandBuffers = new CommandBuffer[secondaryCommandBufferCount];
 
             var allocInfo = new CommandBufferAllocateInfo
             {
                 SType = StructureType.CommandBufferAllocateInfo,
                 CommandPool = CommandPool,
-                Level = CommandBufferLevel.Primary,
-                CommandBufferCount = (uint)count
+                Level = CommandBufferLevel.Secondary,
+                CommandBufferCount = secondaryCommandBufferCount
             };
 
-            fixed (CommandBuffer* commandBuffers = this.DrawCommandBuffers)
+            fixed (CommandBuffer* commandBuffers = this.SecondaryCommandBuffers)
             {
                 var res = VkApi.AllocateCommandBuffers(Device, &allocInfo, commandBuffers);
 
@@ -170,6 +142,99 @@ namespace VulkanCube
                 {
                     throw new VMASharp.VulkanResultException("Failed to allocate command buffers!", res);
                 }
+            }
+
+            var viewport = new Viewport
+            {
+                X = 0.0f,
+                Y = 0.0f,
+                Width = SwapchainExtent.Width,
+                Height = SwapchainExtent.Height,
+                MinDepth = 0.0f,
+                MaxDepth = 1.0f
+            };
+
+            var scissor = new Rect2D(default, SwapchainExtent);
+
+            var inherit = new CommandBufferInheritanceInfo
+            {
+                SType = StructureType.CommandBufferInheritanceInfo,
+
+                RenderPass = this.RenderPass,
+                Subpass = 0
+            };
+
+            const CommandBufferUsageFlags usageFlags = CommandBufferUsageFlags.CommandBufferUsageRenderPassContinueBit | CommandBufferUsageFlags.CommandBufferUsageSimultaneousUseBit;
+
+            BeginCommandBuffer(SecondaryCommandBuffers[0], usageFlags, &inherit);
+
+            VkApi.CmdSetViewport(SecondaryCommandBuffers[0], 0, 1, &viewport);
+            VkApi.CmdSetScissor(SecondaryCommandBuffers[0], 0, 1, &scissor);
+
+            EndCommandBuffer(SecondaryCommandBuffers[0]);
+
+            BeginCommandBuffer(SecondaryCommandBuffers[1], usageFlags, &inherit);
+
+            VkApi.CmdBindPipeline(SecondaryCommandBuffers[1], PipelineBindPoint.Graphics, this.GraphicsPipeline);
+
+            fixed (DescriptorSet* pDescriptorSets = this.DescriptorSets)
+            {
+                uint setCount = (uint)this.DescriptorSets.Length;
+                
+                VkApi.CmdBindDescriptorSets(SecondaryCommandBuffers[1], PipelineBindPoint.Graphics, this.GraphicsPipelineLayout, 0, setCount, pDescriptorSets, 0, null);
+            }
+
+            var vertexBuffer = this.VertexBuffer;
+            ulong offset = 0;
+
+            VkApi.CmdBindVertexBuffers(SecondaryCommandBuffers[1], 0, 1, &vertexBuffer, &offset);
+            VkApi.CmdBindIndexBuffer(SecondaryCommandBuffers[1], this.IndexBuffer, 0, IndexType.Uint16);
+
+            VkApi.CmdDrawIndexed(SecondaryCommandBuffers[1], this.IndexCount, 1, 0, 0, 0);
+            EndCommandBuffer(SecondaryCommandBuffers[1]);
+            
+        }
+
+        private void InitializeFrameContexts()
+        {
+            var buffers = stackalloc CommandBuffer[MaxFramesInFlight];
+
+            var allocInfo = new CommandBufferAllocateInfo
+            {
+                SType = StructureType.CommandBufferAllocateInfo,
+                CommandPool = CommandPool,
+                Level = CommandBufferLevel.Primary,
+                CommandBufferCount = MaxFramesInFlight
+            };
+
+            var res = VkApi.AllocateCommandBuffers(this.Device, &allocInfo, buffers);
+
+            if (res != Result.Success)
+            {
+                throw new VMASharp.VulkanResultException("Failed to allocate command buffers!", res);
+            }
+
+            for (int i = 0; i < MaxFramesInFlight; ++i)
+            {
+                ref var ctx = ref this.FrameContexts[i];
+
+                ctx.CmdBuffer = buffers[i];
+
+                ctx.Fence = this.CreateFence(true);
+
+                ctx.ImageAvailable = this.CreateSemaphore();
+
+                ctx.RenderFinished = this.CreateSemaphore();
+            }
+        }
+
+        private CommandBuffer RecordPrimaryCommandBuffer(CommandBuffer primary, int framebufferIndex)
+        {
+            var res = VkApi.ResetCommandBuffer(primary, 0);
+
+            if (res != Result.Success)
+            {
+
             }
 
             var clearValues = stackalloc ClearValue[2]
@@ -190,67 +255,49 @@ namespace VulkanCube
                 RenderPass = this.RenderPass,
                 RenderArea = { Offset = new Offset2D { X = 0, Y = 0 }, Extent = this.SwapchainExtent },
                 ClearValueCount = 2,
-                PClearValues = clearValues
+                PClearValues = clearValues,
+                Framebuffer = this.FrameBuffers[framebufferIndex]
             };
 
-            var viewport = new Viewport
+            BeginCommandBuffer(primary, CommandBufferUsageFlags.CommandBufferUsageOneTimeSubmitBit);
+
+            VkApi.CmdBeginRenderPass(primary, &renderPassInfo, SubpassContents.SecondaryCommandBuffers);
+
+            fixed (CommandBuffer* cmds = this.SecondaryCommandBuffers)
             {
-                X = 0.0f,
-                Y = 0.0f,
-                Width = SwapchainExtent.Width,
-                Height = SwapchainExtent.Height,
-                MinDepth = 0.0f,
-                MaxDepth = 1.0f
-            };
-
-            var scissor = new Rect2D(default, SwapchainExtent);
-
-            var beginInfo = new CommandBufferBeginInfo
-            {
-                SType = StructureType.CommandBufferBeginInfo
-            };
-
-            var vertexBuffer = this.VertexBuffer;
-            ulong offset = 0;
-
-            fixed (DescriptorSet* pDescriptorSets = this.DescriptorSets)
-            {
-                uint setCount = (uint)this.DescriptorSets.Length;
-                
-                for (var i = 0; i < count; ++i)
-                {
-                    var cbuffer = this.DrawCommandBuffers[i];
-
-                    //Helper Method, begins command buffer recording
-                    BeginCommandBuffer(cbuffer);
-
-                    renderPassInfo.Framebuffer = this.FrameBuffers[i];
-
-                    //Begin Rendering commands
-                    VkApi.CmdBeginRenderPass(cbuffer, &renderPassInfo, SubpassContents.Inline);
-
-                    //Bind Graphics pipeline, Descriptor sets, vertex and index buffers
-                    VkApi.CmdBindPipeline(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipeline);
-
-                    VkApi.CmdBindDescriptorSets(cbuffer, PipelineBindPoint.Graphics, this.GraphicsPipelineLayout, 0, setCount, pDescriptorSets, 0, null);
-
-                    VkApi.CmdBindVertexBuffers(cbuffer, 0, 1, &vertexBuffer, &offset);
-                    VkApi.CmdBindIndexBuffer(cbuffer, this.IndexBuffer, 0, IndexType.Uint16);
-
-                    //Set Dynamic Pipeline state, in this case viewport and scissor
-                    VkApi.CmdSetViewport(cbuffer, 0, 1, &viewport);
-                    VkApi.CmdSetScissor(cbuffer, 0, 1, &scissor);
-
-                    //Draw command
-                    VkApi.CmdDrawIndexed(cbuffer, this.IndexCount, 1, 0, 0, 0);
-
-                    //Ends the renderpass
-                    VkApi.CmdEndRenderPass(cbuffer);
-
-                    //Helper method, ends command buffer recording
-                    EndCommandBuffer(cbuffer);
-                }
+                VkApi.CmdExecuteCommands(primary, (uint)this.SecondaryCommandBuffers.Length, cmds);
             }
+
+            VkApi.CmdEndRenderPass(primary);
+
+            EndCommandBuffer(primary);
+
+            return primary;
+        }
+
+        private Semaphore CreateSemaphore()
+        {
+            var semInfo = new SemaphoreCreateInfo
+            {
+                SType = StructureType.SemaphoreCreateInfo
+            };
+
+            Semaphore sem;
+            var res = VkApi.CreateSemaphore(this.Device, &semInfo, null, &sem);
+
+            if (res != Result.Success)
+            {
+                throw new VMASharp.VulkanResultException("Failed to create Semaphore!", res);
+            }
+
+            return sem;
+        }
+
+        private struct FrameCommandContext
+        {
+            public CommandBuffer CmdBuffer;
+            public Fence Fence;
+            public Semaphore ImageAvailable, RenderFinished;
         }
     }
 }

@@ -43,12 +43,13 @@ namespace VulkanCube
         }
 
         //Helper methods for other examples
-        protected static void BeginCommandBuffer(CommandBuffer buffer, CommandBufferUsageFlags flags = default)
+        protected static void BeginCommandBuffer(CommandBuffer buffer, CommandBufferUsageFlags flags = default, CommandBufferInheritanceInfo* inheritInfo = null)
         {
             CommandBufferBeginInfo info = new CommandBufferBeginInfo
             {
                 SType = StructureType.CommandBufferBeginInfo,
-                Flags = flags
+                Flags = flags,
+                PInheritanceInfo = inheritInfo
             };
 
             var res = VkApi.BeginCommandBuffer(buffer, &info);
