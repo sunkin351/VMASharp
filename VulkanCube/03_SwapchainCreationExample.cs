@@ -108,11 +108,6 @@ namespace VulkanCube
                 {
                     throw new VMASharp.VulkanResultException("Failed to retrieve swapchain images!", res);
                 }
-
-                if (count != imageCount)
-                {
-                    throw new Exception("Unexpected swapchain image count!");
-                }
             }
 
             var viewCreateInfo = new ImageViewCreateInfo

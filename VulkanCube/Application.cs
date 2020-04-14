@@ -8,11 +8,23 @@ namespace VulkanCube
     {
         private static void Main(string[] args)
         {
-            var app = new DrawCubeExample();
+            try
+            {
+                var app = new DrawCubeExample();
 
-            app.Run();
+                app.Run();
 
-            app.Dispose();
+                app.Dispose();
+            }
+            catch (VMASharp.VulkanResultException e)
+            {
+                Console.WriteLine(e);
+                Console.WriteLine("\nResult Code: " + e.Result);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
 
     }
