@@ -69,6 +69,16 @@ namespace VulkanCube
             uint nextImage = 0;
             var res = this.VkSwapchain.AcquireNextImage(this.Device, this.Swapchain, ulong.MaxValue, ctx.ImageAvailable, default, ref nextImage);
 
+            if (res == Result.ErrorOutOfDateKhr)
+            {
+                this.DisplayWindow.Close(); //Window surface changed size, handling that is outside the scope of this example
+                return;
+            }
+            else if (res != Result.Success)
+            {
+                throw new VMASharp.VulkanResultException("Failed to acquire next swapchain image!", res);
+            }
+
             //Push semaphores, command buffer, and Pipeline Stage Flags to the stack to allow "fixed-less" addressing
 
             var waitSemaphore = ctx.ImageAvailable;
@@ -122,7 +132,7 @@ namespace VulkanCube
 
         private void RecordSecondaryCommandBuffers()
         {
-            const uint secondaryCommandBufferCount = 2;
+            const uint secondaryCommandBufferCount = 1;
 
             this.SecondaryCommandBuffers = new CommandBuffer[secondaryCommandBufferCount];
 
@@ -166,33 +176,30 @@ namespace VulkanCube
 
             const CommandBufferUsageFlags usageFlags = CommandBufferUsageFlags.CommandBufferUsageRenderPassContinueBit | CommandBufferUsageFlags.CommandBufferUsageSimultaneousUseBit;
 
-            BeginCommandBuffer(SecondaryCommandBuffers[0], usageFlags, &inherit);
+            CommandBuffer DrawCommandBuffer = SecondaryCommandBuffers[0];
 
-            VkApi.CmdSetViewport(SecondaryCommandBuffers[0], 0, 1, &viewport);
-            VkApi.CmdSetScissor(SecondaryCommandBuffers[0], 0, 1, &scissor);
+            BeginCommandBuffer(DrawCommandBuffer, usageFlags, &inherit);
 
-            EndCommandBuffer(SecondaryCommandBuffers[0]);
+            VkApi.CmdBindPipeline(DrawCommandBuffer, PipelineBindPoint.Graphics, this.GraphicsPipeline);
 
-            BeginCommandBuffer(SecondaryCommandBuffers[1], usageFlags, &inherit);
-
-            VkApi.CmdBindPipeline(SecondaryCommandBuffers[1], PipelineBindPoint.Graphics, this.GraphicsPipeline);
+            VkApi.CmdSetViewport(DrawCommandBuffer, 0, 1, &viewport);
+            VkApi.CmdSetScissor(DrawCommandBuffer, 0, 1, &scissor);
 
             fixed (DescriptorSet* pDescriptorSets = this.DescriptorSets)
             {
                 uint setCount = (uint)this.DescriptorSets.Length;
                 
-                VkApi.CmdBindDescriptorSets(SecondaryCommandBuffers[1], PipelineBindPoint.Graphics, this.GraphicsPipelineLayout, 0, setCount, pDescriptorSets, 0, null);
+                VkApi.CmdBindDescriptorSets(DrawCommandBuffer, PipelineBindPoint.Graphics, this.GraphicsPipelineLayout, 0, setCount, pDescriptorSets, 0, null);
             }
 
             var vertexBuffer = this.VertexBuffer;
             ulong offset = 0;
 
-            VkApi.CmdBindVertexBuffers(SecondaryCommandBuffers[1], 0, 1, &vertexBuffer, &offset);
-            VkApi.CmdBindIndexBuffer(SecondaryCommandBuffers[1], this.IndexBuffer, 0, IndexType.Uint16);
+            VkApi.CmdBindVertexBuffers(DrawCommandBuffer, 0, 1, &vertexBuffer, &offset);
+            VkApi.CmdBindIndexBuffer(DrawCommandBuffer, this.IndexBuffer, 0, IndexType.Uint16);
 
-            VkApi.CmdDrawIndexed(SecondaryCommandBuffers[1], this.IndexCount, 1, 0, 0, 0);
-            EndCommandBuffer(SecondaryCommandBuffers[1]);
-            
+            VkApi.CmdDrawIndexed(DrawCommandBuffer, this.IndexCount, 1, 0, 0, 0);
+            EndCommandBuffer(DrawCommandBuffer);
         }
 
         private void InitializeFrameContexts()

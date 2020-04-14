@@ -13,7 +13,6 @@ namespace VulkanCube
                                                                      0.0f,  0.0f,  0.5f,  1.0f);
 
         private Matrix4x4 Projection, View, MVP;
-        private bool Initialized = false;
 
         public CameraUniform()
         {
