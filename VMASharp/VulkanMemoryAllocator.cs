@@ -949,17 +949,26 @@ namespace VMASharp
 
         internal void DestroyPool(VulkanMemoryPool pool)
         {
-            throw new NotImplementedException();
+            this.PoolsMutex.EnterWriteLock();
+            try
+            {
+                bool success = this.Pools.Remove(pool);
+                Debug.Assert(success, "Pool not found in allocator");
+            }
+            finally
+            {
+                this.PoolsMutex.ExitWriteLock();
+            }
         }
 
         internal void GetPoolStats(VulkanMemoryPool pool, out PoolStats stats)
         {
-            throw new NotImplementedException();
+            pool.BlockList.GetPoolStats(out stats);
         }
 
         internal int MakePoolAllocationsLost(VulkanMemoryPool pool)
         {
-            throw new NotImplementedException();
+            return pool.BlockList.MakePoolAllocationsLost(this.CurrentFrame);
         }
 
         internal Result CheckPoolCorruption(VulkanMemoryPool pool)
