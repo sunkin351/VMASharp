@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
@@ -15,7 +15,7 @@ namespace VMASharp
 
     internal class VulkanMemoryBlock : IDisposable
     {
-        private static Vk VkApi => VulkanMemoryAllocator.VkApi;
+        private Vk VkApi => Allocator.VkApi;
 
         private readonly VulkanMemoryAllocator Allocator;
         public readonly BlockMetadata MetaData;

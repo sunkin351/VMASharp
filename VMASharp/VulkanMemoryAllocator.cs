@@ -21,26 +21,13 @@ namespace VMASharp
     {
         const long SmallHeapMaxSize = 1024L * 1024 * 1024;
 
-
-        internal static Vk VkApi { get; private set; }
-
-        public static void SetAPI(Vk api)
-        {
-            if (VkApi != null)
-            {
-                throw new InvalidOperationException("Tried to set API when API has already been set.");
-            }
-
-            VkApi = api ?? throw new ArgumentNullException(nameof(api));
-        }
+        internal Vk VkApi { get; private set; }
 
         internal readonly Device Device;
         internal readonly Instance Instance;
 
         internal readonly Version32 VulkanAPIVersion;
 
-        internal bool UseKhrDedicatedAllocation;
-        internal bool UseHkrBindMemory2;
         internal bool UseExtMemoryBudget;
         internal bool UseAMDDeviceCoherentMemory;
 
@@ -66,10 +53,12 @@ namespace VMASharp
 
         public VulkanMemoryAllocator(in VulkanMemoryAllocatorCreateInfo createInfo)
         {
-            if (VkApi == null)
+            if (createInfo.VulkanAPIObject == null)
             {
-                throw new InvalidOperationException("API vtable is null, consider using `VulkanMemoryAllocator.SetAPI()`");
+                throw new ArgumentNullException(nameof(createInfo.VulkanAPIObject), "API vtable is null");
             }
+
+            this.VkApi = createInfo.VulkanAPIObject;
 
             if (createInfo.Instance.Handle == default)
             {

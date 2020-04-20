@@ -14,7 +14,9 @@ namespace VMASharp
 {
     public unsafe abstract class Allocation : IDisposable
     {
-        protected static Vk VkApi => VulkanMemoryAllocator.VkApi;
+        internal VulkanMemoryAllocator Allocator { get; }
+
+        protected Vk VkApi => Allocator.VkApi;
 
         protected long size;
         protected long alignment;
@@ -87,8 +89,6 @@ namespace VMASharp
 
 
         public abstract IntPtr MappedData { get; }
-
-        internal VulkanMemoryAllocator Allocator { get; }
 
         public void Dispose()
         {

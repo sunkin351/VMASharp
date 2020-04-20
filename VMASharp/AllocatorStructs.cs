@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -10,6 +10,7 @@ namespace VMASharp
 {
     public struct VulkanMemoryAllocatorCreateInfo
     {
+        public Vk VulkanAPIObject;
         /// <summary>
         /// Flags for created allocator
         /// </summary>

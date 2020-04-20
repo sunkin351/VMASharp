@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Runtime.CompilerServices;
@@ -10,9 +10,10 @@ namespace VMASharp
 {
     public sealed class VulkanMemoryPool : IDisposable
     {
-        private static Vk VkApi => VulkanMemoryAllocator.VkApi;
-
         public VulkanMemoryAllocator Allocator { get; }
+
+        private Vk VkApi => Allocator.VkApi;
+
 
         public string Name { get; set; }
 
