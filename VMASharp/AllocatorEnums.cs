@@ -104,13 +104,18 @@ namespace VMASharp
         CanMakeOtherLost = 0x0010,
         UpperAddress = 0x0040,
         DontBind = 0x0080,
-        WithinBudget = 0x0100,
-        StrategyBestFit = 0x1000,
-        StrategyWorstFit = 0x2000,
-        StrategyFirstFit = 0x4000,
-        StrategyMinMemory = StrategyBestFit,
-        StrategyMinTime = StrategyFirstFit,
-        StrategyMinFragmentation = StrategyWorstFit
+        WithinBudget = 0x0100
+    }
+
+    [Flags]
+    public enum AllocationStrategyFlags
+    {
+        BestFit = 0x1,
+        WorstFit = 0x2,
+        FirstFit = 0x4,
+        MinMemory = BestFit,
+        MinTime = FirstFit,
+        MinFragmentation = WorstFit
     }
 
     [Flags]
@@ -126,7 +131,7 @@ namespace VMASharp
         Incremental = 0x1
     }
 
-    internal enum SuballocationType
+    public enum SuballocationType
     {
         Free = 0,
         Unknown,
@@ -136,7 +141,7 @@ namespace VMASharp
         Image_Optimal
     }
 
-    internal enum AllocationRequestType
+    public enum AllocationRequestType
     {
         Normal,
         UpperAddress,

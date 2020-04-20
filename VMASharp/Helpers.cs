@@ -10,26 +10,27 @@ namespace VMASharp
 {
     internal static class Helpers
     {
-        public const AllocationCreateFlags AllocationStrategiesMask = AllocationCreateFlags.StrategyBestFit | AllocationCreateFlags.StrategyFirstFit | AllocationCreateFlags.StrategyWorstFit;
-
         public const long MinFreeSuballocationSizeToRegister = 16;
         public const int FrameIndexLost = -1;
         public const uint CorruptionDetectionMagicValue = 0x7F84E666;
 
         public const byte AllocationFillPattern_Created = 0xDC;
         public const byte AllocationFillPattern_Destroyed = 0xEF;
+        public const bool DebugInitializeAllocations = false;
 
         public const long DebugMargin = 0;
         public const long DebugAlignment = 1;
         public const long DebugMinBufferImageGranularity = 1;
 
-        public const uint InternalAllocationStrategy_MinOffset = 0x10000000u;
+        public const AllocationStrategyFlags InternalAllocationStrategy_MinOffset = (AllocationStrategyFlags)0x10000000u;
 
         internal static readonly Version32 VulkanAPIVersion_1_0 = new Version32(1, 0, 0);
         internal static readonly Version32 VulkanAPIVersion_1_1 = new Version32(1, 1, 0);
 
         public static readonly Comparison<LinkedListNode<Suballocation>> SuballocationNodeItemSizeLess = (first, second) => first.Value.Size.CompareTo(second.Value.Size);
         public static readonly Comparison<Suballocation> SuballocationItemSizeLess = (first, second) => first.Size.CompareTo(second.Size);
+
+        public static readonly Func<long, Metadata.BlockMetadata> DefaultMetaObjectCreate = size => new Metadata.BlockMetadata_Generic(size);
 
         public static bool IsPow2(int v)
         {
@@ -115,7 +116,7 @@ namespace VMASharp
 
         public static long AlignDown(long value, long alignment)
         {
-            return value / alignment * alignment;
+            return (long)((ulong)value / (ulong)alignment * (ulong)alignment);
         }
 
         public static int BinarySearch<T>(this List<T> list, Func<T, int> SearchCompare)

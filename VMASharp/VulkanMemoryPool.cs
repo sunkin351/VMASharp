@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Runtime.CompilerServices;
@@ -46,7 +46,7 @@ namespace VMASharp
                 (poolInfo.Flags & PoolCreateFlags.IgnoreBufferImageGranularity) != 0 ? 1 : allocator.BufferImageGranularity,
                 poolInfo.FrameInUseCount,
                 poolInfo.BlockSize != 0,
-                (poolInfo.Flags & (PoolCreateFlags.BuddyAlgorithm | PoolCreateFlags.LinearAlgorithm)) == PoolCreateFlags.LinearAlgorithm);
+                poolInfo.AllocationAlgorithmCreate ?? Helpers.DefaultMetaObjectCreate);
 
             this.BlockList.CreateMinBlocks();
         }

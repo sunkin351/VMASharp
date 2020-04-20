@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
@@ -11,17 +11,19 @@ using VMASharp;
 
 namespace VMASharp
 {
+    using Metadata;
+
     internal class VulkanMemoryBlock : IDisposable
     {
         private static Vk VkApi => VulkanMemoryAllocator.VkApi;
 
         private readonly VulkanMemoryAllocator Allocator;
-        public BlockMetadata MetaData;
+        public readonly BlockMetadata MetaData;
         private readonly object SyncLock = new object();
         private int mapCount;
 
 
-        public VulkanMemoryBlock(VulkanMemoryAllocator allocator, VulkanMemoryPool pool, int memoryTypeIndex, DeviceMemory memory, long size, uint id, uint algorithm)
+        public VulkanMemoryBlock(VulkanMemoryAllocator allocator, VulkanMemoryPool? pool, int memoryTypeIndex, DeviceMemory memory, uint id, BlockMetadata metaObject)
         {
             Allocator = allocator;
             ParentPool = pool;
@@ -29,22 +31,7 @@ namespace VMASharp
             DeviceMemory = memory;
             ID = id;
 
-            switch (algorithm)
-            {
-                case (uint)PoolCreateFlags.LinearAlgorithm:
-                    this.MetaData = new BlockMetadata_Linear(allocator);
-                    break;
-                case (uint)PoolCreateFlags.BuddyAlgorithm:
-                    this.MetaData = new BlockMetadata_Buddy(allocator);
-                    break;
-                case 0:
-                    this.MetaData = new BlockMetadata_Generic(allocator);
-                    break;
-                default:
-                    throw new ArgumentException("Invalid algorithm passed to constructor");
-            }
-
-            this.MetaData.Init(size);
+            MetaData = metaObject;
         }
 
         public VulkanMemoryPool? ParentPool { get; }

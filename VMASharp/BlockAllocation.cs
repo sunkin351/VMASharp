@@ -7,14 +7,14 @@ using VMASharp;
 
 namespace VMASharp
 {
-    internal sealed class BlockAllocation : Allocation
+    public sealed class BlockAllocation : Allocation
     {
         internal VulkanMemoryBlock Block;
         internal long offset;
         internal SuballocationType suballocationType;
         internal bool canBecomeLost;
 
-        public BlockAllocation(VulkanMemoryAllocator allocator, int currentFrameIndex) : base(allocator, currentFrameIndex)
+        internal BlockAllocation(VulkanMemoryAllocator allocator, int currentFrameIndex) : base(allocator, currentFrameIndex)
         {
         }
 
@@ -55,7 +55,7 @@ namespace VMASharp
             this.Block = block;
             this.offset = offset;
             this.alignment = alignment;
-            this.Size = size;
+            this.size = size;
             this.memoryTypeIndex = memoryTypeIndex;
             this.mapCount = mapped ? int.MinValue : 0;
             this.suballocationType = subType;

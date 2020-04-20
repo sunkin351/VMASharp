@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 using Silk.NET.Vulkan;
+
+#nullable enable
 
 namespace VMASharp
 {
@@ -23,7 +25,7 @@ namespace VMASharp
 
         public int FrameInUseCount;
 
-        public long[] HeapSizeLimits;
+        public long[]? HeapSizeLimits;
 
         public Version32 VulkanAPIVersion;
     }
@@ -31,6 +33,8 @@ namespace VMASharp
     public struct AllocationCreateInfo
     {
         public AllocationCreateFlags Flags;
+
+        public AllocationStrategyFlags Strategy;
 
         public MemoryUsage Usage;
 
@@ -59,17 +63,30 @@ namespace VMASharp
 
         public int FrameInUseCount;
 
+        public Func<long, Metadata.BlockMetadata>? AllocationAlgorithmCreate;
+
     }
 
-    internal struct AllocationRequest
+    public struct AllocationContext
+    {
+        public int CurrentFrame, FrameInUseCount;
+        public long BufferImageGranularity;
+        public long AllocationSize;
+        public long AllocationAlignment;
+        public AllocationStrategyFlags Strategy;
+        public SuballocationType SuballocationType;
+        public bool CanMakeOtherLost;
+    }
+
+    public struct AllocationRequest
     {
         public const long LostAllocationCost = 1048576;
 
         public long Offset, SumFreeSize, SumItemSize;
-
-        public LinkedListNode<Suballocation> Item;
-
         public long ItemsToMakeLostCount;
+
+        public object Item;
+
         public object CustomData;
         public AllocationRequestType Type;
         

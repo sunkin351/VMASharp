@@ -1,4 +1,4 @@
-﻿#pragma warning disable CA1063
+#pragma warning disable CA1063
 
 using System;
 using System.Collections.Generic;
@@ -16,11 +16,29 @@ namespace VMASharp
     {
         protected static Vk VkApi => VulkanMemoryAllocator.VkApi;
 
+        protected long size;
         protected long alignment;
         private int lastUseFrameIndex;
         protected int memoryTypeIndex;
         protected int mapCount;
         private bool LostOrDisposed = false;
+
+        /// <summary>
+        /// Size of this allocation, in bytes.
+        /// Value never changes, unless allocation is lost.
+        /// </summary>
+        public long Size
+        {
+            get
+            {
+                if (LostOrDisposed || lastUseFrameIndex == Helpers.FrameIndexLost)
+                {
+                    return 0;
+                }
+
+                return size;
+            }
+        }
 
         /// <summary>
         /// Memory type index that this allocation is from. Value does not change.
@@ -43,11 +61,6 @@ namespace VMASharp
 
         internal abstract bool CanBecomeLost { get; }
 
-        /// <summary>
-        /// Size of this allocation, in bytes.
-        /// Value never changes, unless allocation is lost.
-        /// </summary>
-        public long Size { get; internal set; }
 
         internal bool IsPersistantMapped
         {

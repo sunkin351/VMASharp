@@ -1,16 +1,17 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
 using System.Linq;
 
 using Silk.NET.Vulkan;
-using VMASharp;
 
 #nullable enable
 
 namespace VMASharp
 {
+    using Metadata;
+
     internal class BlockList : IDisposable
     {
         private const int AllocationTryCount = 32;
@@ -21,14 +22,14 @@ namespace VMASharp
         private readonly int minBlockCount, maxBlockCount;
         private readonly bool explicitBlockSize;
 
-        private readonly uint algorithm;
+        private readonly Func<long, BlockMetadata> metaObjectCreate;
 
         private bool hasEmptyBlock;
         private uint nextBlockID;
 
         public BlockList(VulkanMemoryAllocator allocator, VulkanMemoryPool? pool, int memoryTypeIndex,
             long preferredBlockSize, int minBlockCount, int maxBlockCount, long bufferImageGranularity,
-            int frameInUseCount, bool explicitBlockSize, bool linearAlgorithm)
+            int frameInUseCount, bool explicitBlockSize, Func<long, BlockMetadata> algorithm)
         {
             this.Allocator = allocator;
             this.ParentPool = pool;
@@ -40,7 +41,7 @@ namespace VMASharp
             this.FrameInUseCount = frameInUseCount;
             this.explicitBlockSize = explicitBlockSize;
 
-            //this.algorithm = (uint)algorithm;
+            metaObjectCreate = algorithm;
         }
 
         public void Dispose()
@@ -91,7 +92,7 @@ namespace VMASharp
             get => blocks[index];
         }
 
-        private IEnumerable<VulkanMemoryBlock> BlocksInReverse //Just gonna take advantage of C#
+        private IEnumerable<VulkanMemoryBlock> BlocksInReverse //Just gonna take advantage of C#...
         {
             get
             {
@@ -374,26 +375,26 @@ namespace VMASharp
             bool canFallbackToDedicated = !this.IsCustomPool;
             bool canCreateNewBlock = ((createInfo.Flags & AllocationCreateFlags.NeverAllocate) == 0) && (this.blocks.Count < this.maxBlockCount) && (freeMemory >= size || !canFallbackToDedicated);
 
-            uint strategy = (uint)(createInfo.Flags & Helpers.AllocationStrategiesMask);
+            var strategy = createInfo.Strategy;
 
-            if (this.algorithm == (uint)PoolCreateFlags.LinearAlgorithm && this.maxBlockCount > 1)
-            {
-                canMakeOtherLost = false;
-            }
+            //if (this.algorithm == (uint)PoolCreateFlags.LinearAlgorithm && this.maxBlockCount > 1)
+            //{
+            //    canMakeOtherLost = false;
+            //}
 
-            if (isUpperAddress && (this.algorithm != (uint)PoolCreateFlags.LinearAlgorithm || this.maxBlockCount > 1))
-            {
-                throw new AllocationException("Upper address allocation unavailable", Result.ErrorFeatureNotPresent);
-            }
+            //if (isUpperAddress && (this.algorithm != (uint)PoolCreateFlags.LinearAlgorithm || this.maxBlockCount > 1))
+            //{
+            //    throw new AllocationException("Upper address allocation unavailable", Result.ErrorFeatureNotPresent);
+            //}
 
             switch (strategy)
             {
                 case 0:
-                    strategy = (uint)AllocationCreateFlags.StrategyBestFit;
+                    strategy = AllocationStrategyFlags.BestFit;
                     break;
-                case (uint)AllocationCreateFlags.StrategyBestFit:
-                case (uint)AllocationCreateFlags.StrategyWorstFit:
-                case (uint)AllocationCreateFlags.StrategyFirstFit:
+                case AllocationStrategyFlags.BestFit:
+                case AllocationStrategyFlags.WorstFit:
+                case AllocationStrategyFlags.FirstFit:
                     break;
                 default:
                     throw new AllocationException("Invalid allocation strategy", Result.ErrorFeatureNotPresent);
@@ -404,32 +405,27 @@ namespace VMASharp
                 throw new AllocationException("Allocation size larger than block size", Result.ErrorOutOfDeviceMemory);
             }
 
+            AllocationContext context = new AllocationContext();
+            context.CurrentFrame = currentFrame;
+            context.FrameInUseCount = this.FrameInUseCount;
+            context.BufferImageGranularity = this.BufferImageGranularity;
+            context.AllocationSize = size;
+            context.AllocationAlignment = alignment;
+            context.Strategy = strategy;
+            context.SuballocationType = suballocType;
+            context.CanMakeOtherLost = canMakeOtherLost;
+
             Allocation? alloc;
 
             if (!canMakeOtherLost || canCreateNewBlock)
             {
                 AllocationCreateFlags allocFlagsCopy = createInfo.Flags & ~AllocationCreateFlags.CanMakeOtherLost;
 
-                if (this.algorithm == (uint)PoolCreateFlags.LinearAlgorithm)
-                { 
-                    if (this.blocks.Count != 0)
-                    {
-                        var block = this.blocks[this.blocks.Count - 1];
-
-                        alloc = this.AllocateFromBlock(block, currentFrame, size, alignment, allocFlagsCopy, createInfo.UserData, suballocType, strategy);
-
-                        if (alloc != null)
-                        {
-                            //Possibly Log here
-                            return alloc;
-                        }
-                    }
-                }
-                else if (strategy == (uint)AllocationCreateFlags.StrategyBestFit)
+                if (strategy == AllocationStrategyFlags.BestFit)
                 {
                     foreach (var block in this.blocks)
                     {
-                        alloc = this.AllocateFromBlock(block, currentFrame, size, alignment, allocFlagsCopy, createInfo.UserData, suballocType, strategy);
+                        alloc = this.AllocateFromBlock(block, in context, allocFlagsCopy, createInfo.UserData);
 
                         if (alloc != null)
                         {
@@ -442,7 +438,7 @@ namespace VMASharp
                 {
                     foreach (var curBlock in this.BlocksInReverse)
                     {
-                        alloc = this.AllocateFromBlock(curBlock, currentFrame, size, alignment, allocFlagsCopy, createInfo.UserData, suballocType, strategy);
+                        alloc = this.AllocateFromBlock(curBlock, in context, allocFlagsCopy, createInfo.UserData);
 
                         if (alloc != null)
                         {
@@ -507,7 +503,7 @@ namespace VMASharp
                 {
                     var block = this.blocks[newBlockIndex];
 
-                    alloc = this.AllocateFromBlock(block, currentFrame, size, alignment, allocFlagsCopy, createInfo.UserData, suballocType, strategy);
+                    alloc = this.AllocateFromBlock(block, in context, allocFlagsCopy, createInfo.UserData);
 
                     if (alloc != null)
                     {
@@ -527,20 +523,11 @@ namespace VMASharp
                     AllocationRequest bestAllocRequest = new AllocationRequest();
                     long bestRequestCost = long.MaxValue;
 
-                    if (strategy == (uint)AllocationCreateFlags.StrategyBestFit)
+                    if (strategy == AllocationStrategyFlags.BestFit)
                     {
                         foreach (var curBlock in this.blocks)
                         {
-                            if (curBlock.MetaData.CreateAllocationRequest(currentFrame,
-                                                                       this.FrameInUseCount,
-                                                                       this.BufferImageGranularity,
-                                                                       size,
-                                                                       alignment,
-                                                                       isUpperAddress,
-                                                                       suballocType,
-                                                                       canMakeOtherLost,
-                                                                       strategy,
-                                                                       out var request))
+                            if (curBlock.MetaData.TryCreateAllocationRequest(in context, out var request))
                             {
                                 long currRequestCost = request.CalcCost();
 
@@ -560,26 +547,17 @@ namespace VMASharp
                     {
                         foreach (var curBlock in this.BlocksInReverse)
                         {
-                            if (curBlock.MetaData.CreateAllocationRequest(currentFrame,
-                                                                          this.FrameInUseCount,
-                                                                          this.BufferImageGranularity,
-                                                                          size,
-                                                                          alignment,
-                                                                          isUpperAddress,
-                                                                          suballocType,
-                                                                          canMakeOtherLost,
-                                                                          strategy,
-                                                                          out var request))
+                            if (curBlock.MetaData.TryCreateAllocationRequest(in context, out var request))
                             {
                                 long curRequestCost = request.CalcCost();
 
-                                if (bestRequestBlock == null || curRequestCost < bestRequestCost || strategy == (uint)AllocationCreateFlags.StrategyFirstFit)
+                                if (bestRequestBlock == null || curRequestCost < bestRequestCost || strategy == AllocationStrategyFlags.FirstFit)
                                 {
                                     bestRequestBlock = curBlock;
                                     bestRequestCost = curRequestCost;
                                     bestAllocRequest = request;
 
-                                    if (bestRequestCost == 0 || strategy == (uint)AllocationCreateFlags.StrategyFirstFit)
+                                    if (bestRequestCost == 0 || strategy == AllocationStrategyFlags.FirstFit)
                                     {
                                         break;
                                     }
@@ -639,15 +617,12 @@ namespace VMASharp
             throw new AllocationException("Unable to allocate memory");
         }
 
-        private Allocation? AllocateFromBlock(VulkanMemoryBlock block, int currentFrame, long size, long alignment, AllocationCreateFlags flags, object userData, SuballocationType suballocType, uint strategy)
+        private Allocation? AllocateFromBlock(VulkanMemoryBlock block, in AllocationContext context, AllocationCreateFlags flags, object userData)
         {
             Debug.Assert((flags & AllocationCreateFlags.CanMakeOtherLost) == 0);
-            bool isUpperAddress = (flags & AllocationCreateFlags.UpperAddress) != 0;
             bool mapped = (flags & AllocationCreateFlags.Mapped) != 0;
 
-            if (block.MetaData.CreateAllocationRequest(currentFrame, this.FrameInUseCount, this.BufferImageGranularity,
-                                                       size, alignment, isUpperAddress, suballocType, false, strategy,
-                                                       out var request))
+            if (block.MetaData.TryCreateAllocationRequest(in context, out var request))
             {
                 Debug.Assert(request.ItemsToMakeLostCount == 0);
 
@@ -658,10 +633,10 @@ namespace VMASharp
 
                 var allocation = new BlockAllocation(this.Allocator, this.Allocator.CurrentFrameIndex);
                 
-                block.MetaData.Alloc(in request, suballocType, size, allocation);
+                block.MetaData.Alloc(in request, context.SuballocationType, context.AllocationSize, allocation);
 
-                allocation.InitBlockAllocation(block, request.Offset, alignment, size, this.MemoryTypeIndex,
-                                               suballocType, mapped, (flags & AllocationCreateFlags.CanBecomeLost) != 0);
+                allocation.InitBlockAllocation(block, request.Offset, context.AllocationAlignment, context.AllocationSize, this.MemoryTypeIndex,
+                                               context.SuballocationType, mapped, (flags & AllocationCreateFlags.CanBecomeLost) != 0);
                 
                 this.UpdateHasEmptyBlock();
 
@@ -669,7 +644,7 @@ namespace VMASharp
 
                 allocation.UserData = userData;
 
-                this.Allocator.Budget.AddAllocation(this.Allocator.MemoryTypeIndexToHeapIndex(this.MemoryTypeIndex), size);
+                this.Allocator.Budget.AddAllocation(this.Allocator.MemoryTypeIndexToHeapIndex(this.MemoryTypeIndex), context.AllocationSize);
 
                 return allocation;
             }
@@ -695,7 +670,14 @@ namespace VMASharp
                 return res;
             }
 
-            var block = new VulkanMemoryBlock(this.Allocator, this.ParentPool, this.MemoryTypeIndex, mem, blockSize, this.nextBlockID++, this.algorithm);
+            var metaObject = this.metaObjectCreate(blockSize);
+
+            if (metaObject.Size != blockSize)
+            {
+                throw new InvalidOperationException("Returned Metadata object reports incorrect block size");
+            }
+
+            var block = new VulkanMemoryBlock(this.Allocator, this.ParentPool, this.MemoryTypeIndex, mem, this.nextBlockID++, metaObject);
 
             this.blocks.Add(block);
 
@@ -751,7 +733,7 @@ namespace VMASharp
 
         private void IncrementallySortBlocks()
         {
-            if (this.algorithm != (uint)PoolCreateFlags.LinearAlgorithm && (uint)this.blocks.Count > 1)
+            if ((uint)this.blocks.Count > 1)
             {
                 var prevBlock = this.blocks[0];
                 int i = 1;

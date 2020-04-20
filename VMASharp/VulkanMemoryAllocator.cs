@@ -37,9 +37,6 @@ namespace VMASharp
         internal readonly Device Device;
         internal readonly Instance Instance;
 
-        internal readonly KhrBindMemory2? BindMemory2;
-        internal readonly KhrGetMemoryRequirements2? MemoryRequirements2;
-
         internal readonly Version32 VulkanAPIVersion;
 
         internal bool UseKhrDedicatedAllocation;
@@ -49,8 +46,8 @@ namespace VMASharp
 
         internal uint HeapSizeLimitMask;
 
-        internal PhysicalDeviceProperties PhysicalDeviceProperties;
-        internal PhysicalDeviceMemoryProperties MemoryProperties;
+        internal PhysicalDeviceProperties physicalDeviceProperties;
+        internal PhysicalDeviceMemoryProperties memoryProperties;
 
         internal readonly BlockList[] BlockLists = new BlockList[Vk.MaxMemoryTypes]; //Default Pools
 
@@ -58,7 +55,8 @@ namespace VMASharp
 
         private long PreferredLargeHeapBlockSize;
         private PhysicalDevice PhysicalDevice;
-        private uint CurrentFrame, GPUFragmentationMemoryTypeBits = uint.MaxValue;
+        private int CurrentFrame;
+        private uint GPUDefragmentationMemoryTypeBits = uint.MaxValue;
 
         private readonly ReaderWriterLockSlim PoolsMutex = new ReaderWriterLockSlim();
         private readonly List<VulkanMemoryPool> Pools = new List<VulkanMemoryPool>();
@@ -98,18 +96,13 @@ namespace VMASharp
                 throw new ArgumentException("API Device does not match the Instance passed with 'createInfo'.");
             }
 
+            if (createInfo.VulkanAPIVersion < Vk.Version11)
+            {
+                throw new NotSupportedException("Vulkan API Version of less than 1.1 is not supported");
+            }
+
             this.Instance = createInfo.Instance;
             this.Device = createInfo.LogicalDevice;
-
-            if (VkApi.IsExtensionPresent("VK_KHR_bind_memory2") && !VkApi.TryGetExtension(out this.BindMemory2))
-            {
-                throw new InvalidOperationException("Unable to get vtable for VK_KHR_bind_memory2");
-            }
-
-            if (VkApi.IsExtensionPresent("VK_KHR_get_memory_requirements2") && !VkApi.TryGetExtension(out this.MemoryRequirements2))
-            {
-                throw new InvalidOperationException("Unable to get vtable for VK_KHR_get_memory_requirements2");
-            }
 
             this.VulkanAPIVersion = createInfo.VulkanAPIVersion;
 
@@ -118,21 +111,23 @@ namespace VMASharp
                 this.VulkanAPIVersion = Vk.Version10;
             }
 
-            VkApi.GetPhysicalDeviceProperties(createInfo.PhysicalDevice, out this.PhysicalDeviceProperties);
-            VkApi.GetPhysicalDeviceMemoryProperties(createInfo.PhysicalDevice, out this.MemoryProperties);
+            this.UseExtMemoryBudget = VkApi.IsExtensionPresent("VK_EXT_memory_budget");
+
+            VkApi.GetPhysicalDeviceProperties(createInfo.PhysicalDevice, out this.physicalDeviceProperties);
+            VkApi.GetPhysicalDeviceMemoryProperties(createInfo.PhysicalDevice, out this.memoryProperties);
 
             Debug.Assert(Helpers.IsPow2(Helpers.DebugAlignment));
             Debug.Assert(Helpers.IsPow2(Helpers.DebugMinBufferImageGranularity));
             Debug.Assert(Helpers.IsPow2((long)this.PhysicalDeviceProperties.Limits.BufferImageGranularity));
             Debug.Assert(Helpers.IsPow2((long)this.PhysicalDeviceProperties.Limits.NonCoherentAtomSize));
 
-            this.PreferredLargeHeapBlockSize = (createInfo.PreferredLargeHeapBlockSize != 0) ? (long)createInfo.PreferredLargeHeapBlockSize : (256L * 1024 * 1024);
+            this.PreferredLargeHeapBlockSize = (createInfo.PreferredLargeHeapBlockSize != 0) ? createInfo.PreferredLargeHeapBlockSize : (256L * 1024 * 1024);
 
             this.GlobalMemoryTypeBits = this.CalculateGlobalMemoryTypeBits();
 
             if (createInfo.HeapSizeLimits != null)
             {
-                Span<MemoryHeap> memoryHeaps = MemoryMarshal.CreateSpan(ref this.MemoryProperties.MemoryHeaps_0, (int)Vk.MaxMemoryHeaps);
+                Span<MemoryHeap> memoryHeaps = MemoryMarshal.CreateSpan(ref this.memoryProperties.MemoryHeaps_0, (int)Vk.MaxMemoryHeaps);
 
                 int heapLimitLength = Math.Min(createInfo.HeapSizeLimits.Length, (int)Vk.MaxMemoryHeaps);
 
@@ -160,7 +155,7 @@ namespace VMASharp
                 long preferredBlockSize = this.CalcPreferredBlockSize(memTypeIndex);
 
                 this.BlockLists[memTypeIndex] =
-                    new BlockList(this, null, memTypeIndex, preferredBlockSize, 0, int.MaxValue, this.BufferImageGranularity, createInfo.FrameInUseCount, false, false);
+                    new BlockList(this, null, memTypeIndex, preferredBlockSize, 0, int.MaxValue, this.BufferImageGranularity, createInfo.FrameInUseCount, false, Helpers.DefaultMetaObjectCreate);
 
                 ref DedicatedAllocationHandler alloc = ref DedicatedAllocations[memTypeIndex];
 
@@ -212,19 +207,13 @@ namespace VMASharp
             }
         }
 
-        private void GetPhysicalDeviceProperties(out PhysicalDeviceProperties properties)
-        {
-            throw new NotImplementedException();
-        }
+        public ref readonly PhysicalDeviceProperties PhysicalDeviceProperties => ref this.physicalDeviceProperties;
 
-        private void GetMemoryProperties(out PhysicalDeviceMemoryProperties properties)
-        {
-            throw new NotImplementedException();
-        }
+        public ref readonly PhysicalDeviceMemoryProperties MemoryProperties => ref this.memoryProperties;
 
-        private MemoryPropertyFlags GetMemoryTypeProperties(uint memoryTypeIndex)
+        public MemoryPropertyFlags GetMemoryTypeProperties(int memoryTypeIndex)
         {
-            throw new NotImplementedException();
+            return this.MemoryType(memoryTypeIndex).PropertyFlags;
         }
 
         public int? FindMemoryTypeIndex(uint memoryTypeBits, in AllocationCreateInfo allocInfo)
@@ -448,14 +437,14 @@ namespace VMASharp
         {
             Debug.Assert((uint)index < Vk.MaxMemoryTypes);
 
-            return ref Unsafe.Add(ref this.MemoryProperties.MemoryTypes_0, index);
+            return ref Unsafe.Add(ref this.memoryProperties.MemoryTypes_0, index);
         }
 
         private ref MemoryHeap MemoryHeap(int index)
         {
             Debug.Assert((uint)index < Vk.MaxMemoryHeaps);
 
-            return ref Unsafe.Add(ref this.MemoryProperties.MemoryHeaps_0, index);
+            return ref Unsafe.Add(ref this.memoryProperties.MemoryHeaps_0, index);
         }
 
         internal int MemoryTypeIndexToHeapIndex(int typeIndex)
@@ -476,130 +465,54 @@ namespace VMASharp
 
         internal void GetBufferMemoryRequirements(Buffer buffer, out MemoryRequirements memReq, out bool requiresDedicatedAllocation, out bool prefersDedicatedAllocation)
         {
-            BufferMemoryRequirementsInfo2 req;
-            MemoryDedicatedRequirements dedicatedRequirements;
-            MemoryRequirements2 memReq2;
-
-            if (this.VulkanAPIVersion >= Helpers.VulkanAPIVersion_1_1)
+            var req = new BufferMemoryRequirementsInfo2
             {
-                req = new BufferMemoryRequirementsInfo2
-                {
-                    SType = StructureType.BufferMemoryRequirementsInfo2,
-                    Buffer = buffer
-                };
+                SType = StructureType.BufferMemoryRequirementsInfo2,
+                Buffer = buffer
+            };
 
-                dedicatedRequirements = new MemoryDedicatedRequirements
-                {
-                    SType = StructureType.MemoryDedicatedRequirements,
-                };
+            var dedicatedRequirements = new MemoryDedicatedRequirements
+            {
+                SType = StructureType.MemoryDedicatedRequirements,
+            };
 
-                memReq2 = new MemoryRequirements2
-                {
-                    SType = StructureType.MemoryRequirements2,
-                    PNext = &dedicatedRequirements
+            var memReq2 = new MemoryRequirements2
+            {
+                SType = StructureType.MemoryRequirements2,
+                PNext = &dedicatedRequirements
                 };
 
                 VkApi.GetBufferMemoryRequirements2(this.Device, &req, &memReq2);
 
                 memReq = memReq2.MemoryRequirements;
-                requiresDedicatedAllocation = dedicatedRequirements.RequiresDedicatedAllocation != 0;
-                prefersDedicatedAllocation = dedicatedRequirements.PrefersDedicatedAllocation != 0;
-            }
-            else if (this.UseKhrDedicatedAllocation && this.MemoryRequirements2 != null)
-            {
-                req = new BufferMemoryRequirementsInfo2
-                {
-                    SType = StructureType.BufferMemoryRequirementsInfo2,
-                    Buffer = buffer
-                };
-
-                dedicatedRequirements = new MemoryDedicatedRequirements
-                {
-                    SType = StructureType.MemoryDedicatedRequirements,
-                };
-
-                memReq2 = new MemoryRequirements2
-                {
-                    SType = StructureType.MemoryRequirements2,
-                    PNext = &dedicatedRequirements
-                };
-
-                MemoryRequirements2.GetBufferMemoryRequirements2(this.Device, &req, &memReq2);
-
-                memReq = memReq2.MemoryRequirements;
-                requiresDedicatedAllocation = dedicatedRequirements.RequiresDedicatedAllocation != 0;
-                prefersDedicatedAllocation = dedicatedRequirements.PrefersDedicatedAllocation != 0;
-            }
-            else
-            {
-                VkApi.GetBufferMemoryRequirements(this.Device, buffer, out memReq);
-                requiresDedicatedAllocation = false;
-                prefersDedicatedAllocation = false;
-            }
+            requiresDedicatedAllocation = dedicatedRequirements.RequiresDedicatedAllocation != 0;
+            prefersDedicatedAllocation = dedicatedRequirements.PrefersDedicatedAllocation != 0;
         }
 
         internal void GetImageMemoryRequirements(Image image, out MemoryRequirements memReq, out bool requiresDedicatedAllocation, out bool prefersDedicatedAllocation)
         {
-            ImageMemoryRequirementsInfo2 req;
-            MemoryDedicatedRequirements dedicatedRequirements;
-            MemoryRequirements2 memReq2;
-
-            if (VulkanAPIVersion >= Helpers.VulkanAPIVersion_1_1)
+            var req = new ImageMemoryRequirementsInfo2
             {
-                req = new ImageMemoryRequirementsInfo2
-                {
-                    SType = StructureType.ImageMemoryRequirementsInfo2,
-                    Image = image
-                };
+                SType = StructureType.ImageMemoryRequirementsInfo2,
+                Image = image
+            };
 
-                dedicatedRequirements = new MemoryDedicatedRequirements
-                {
-                    SType = StructureType.MemoryDedicatedRequirements,
-                };
+            var dedicatedRequirements = new MemoryDedicatedRequirements
+            {
+                SType = StructureType.MemoryDedicatedRequirements,
+            };
 
-                memReq2 = new MemoryRequirements2
-                {
-                    SType = StructureType.MemoryRequirements2,
-                    PNext = &dedicatedRequirements
+            var memReq2 = new MemoryRequirements2
+            {
+                SType = StructureType.MemoryRequirements2,
+                PNext = &dedicatedRequirements
                 };
 
                 VkApi.GetImageMemoryRequirements2(this.Device, &req, &memReq2);
 
                 memReq = memReq2.MemoryRequirements;
-                requiresDedicatedAllocation = dedicatedRequirements.RequiresDedicatedAllocation != 0;
-                prefersDedicatedAllocation = dedicatedRequirements.PrefersDedicatedAllocation != 0;
-            }
-            else if (this.UseKhrDedicatedAllocation && this.MemoryRequirements2 != null)
-            {
-                req = new ImageMemoryRequirementsInfo2
-                {
-                    SType = StructureType.ImageMemoryRequirementsInfo2,
-                    Image = image
-                };
-
-                dedicatedRequirements = new MemoryDedicatedRequirements
-                {
-                    SType = StructureType.MemoryDedicatedRequirements,
-                };
-
-                memReq2 = new MemoryRequirements2
-                {
-                    SType = StructureType.MemoryRequirements2,
-                    PNext = &dedicatedRequirements
-                };
-
-                MemoryRequirements2.GetImageMemoryRequirements2(this.Device, &req, &memReq2);
-
-                memReq = memReq2.MemoryRequirements;
-                requiresDedicatedAllocation = dedicatedRequirements.RequiresDedicatedAllocation != 0;
-                prefersDedicatedAllocation = dedicatedRequirements.PrefersDedicatedAllocation != 0;
-            }
-            else
-            {
-                VkApi.GetImageMemoryRequirements(this.Device, image, out memReq);
-                requiresDedicatedAllocation = false;
-                prefersDedicatedAllocation = false;
-            }
+            requiresDedicatedAllocation = dedicatedRequirements.RequiresDedicatedAllocation != 0;
+            prefersDedicatedAllocation = dedicatedRequirements.PrefersDedicatedAllocation != 0;
         }
 
         internal Allocation[] AllocateMemory(in MemoryRequirements memReq, bool requiresDedicatedAllocation,
@@ -1091,38 +1004,16 @@ namespace VMASharp
         {
             if (pNext != null)
             {
-                BindBufferMemoryInfo info;
-
-                if (this.VulkanAPIVersion >= Vk.Version11)
+                var info = new BindBufferMemoryInfo
                 {
-                    info = new BindBufferMemoryInfo
-                    {
-                        SType = StructureType.BindBufferMemoryInfo,
-                        PNext = pNext,
+                    SType = StructureType.BindBufferMemoryInfo,
+                    PNext = pNext,
                         Buffer = buffer,
                         Memory = memory,
                         MemoryOffset = (ulong)offset
                     };
 
-                    return VkApi.BindBufferMemory2(this.Device, 1, &info);
-                }
-                else if (this.UseHkrBindMemory2 && this.BindMemory2 != null)
-                {
-                    info = new BindBufferMemoryInfo
-                    {
-                        SType = StructureType.BindBufferMemoryInfo,
-                        PNext = (void*)pNext,
-                        Buffer = buffer,
-                        Memory = memory,
-                        MemoryOffset = (ulong)offset
-                    };
-
-                    return this.BindMemory2.BindBufferMemory2(this.Device, 1, &info);
-                }
-                else
-                {
-                    return Result.ErrorExtensionNotPresent;
-                }
+                return VkApi.BindBufferMemory2(this.Device, 1, &info);
             }
             else
             {
@@ -1134,38 +1025,16 @@ namespace VMASharp
         {
             if (pNext != default)
             {
-                BindImageMemoryInfo info;
-
-                if (this.VulkanAPIVersion >= Vk.Version11)
+                var info = new BindImageMemoryInfo
                 {
-                    info = new BindImageMemoryInfo
-                    {
-                        SType = StructureType.BindBufferMemoryInfo,
-                        PNext = pNext,
-                        Image = image,
+                    SType = StructureType.BindBufferMemoryInfo,
+                    PNext = pNext,
+                    Image = image,
                         Memory = memory,
                         MemoryOffset = (ulong)offset
                     };
 
-                    return VkApi.BindImageMemory2(this.Device, 1, &info);
-                }
-                else if (this.UseHkrBindMemory2 && this.BindMemory2 != null)
-                {
-                    info = new BindImageMemoryInfo
-                    {
-                        SType = StructureType.BindBufferMemoryInfo,
-                        PNext = (void*)pNext,
-                        Image = image,
-                        Memory = memory,
-                        MemoryOffset = (ulong)offset
-                    };
-
-                    return this.BindMemory2.BindImageMemory2(this.Device, 1, &info);
-                }
-                else
-                {
-                    return Result.ErrorExtensionNotPresent;
-                }
+                return VkApi.BindImageMemory2(this.Device, 1, &info);
             }
             else
             {
@@ -1173,24 +1042,30 @@ namespace VMASharp
             }
         }
 
-        internal Result Map(Allocation allocation, out IntPtr pData)
-        {
-            throw new NotImplementedException();
-        }
-
-        internal void Unmap(Allocation allocation)
-        {
-            throw new NotImplementedException();
-        }
-
         internal void FillAllocation(Allocation allocation, byte pattern)
         {
-            throw new NotImplementedException();
+            if (Helpers.DebugInitializeAllocations && !allocation.CanBecomeLost &&
+                (this.MemoryType(allocation.MemoryTypeIndex).PropertyFlags & MemoryPropertyFlags.MemoryPropertyHostVisibleBit) != 0)
+            {
+                IntPtr pData = allocation.Map();
+
+                Unsafe.InitBlockUnaligned(ref *(byte*)pData, pattern, (uint)allocation.Size);
+
+                this.FlushOrInvalidateAllocation(allocation, 0, long.MaxValue, CacheOperation.Flush);
+
+                allocation.Unmap();
+            }
         }
 
         internal uint GetGPUDefragmentationMemoryTypeBits()
         {
-            throw new NotImplementedException();
+            uint memTypeBits = this.GPUDefragmentationMemoryTypeBits;
+            if (memTypeBits == uint.MaxValue)
+            {
+                memTypeBits = this.CalculateGpuDefragmentationMemoryTypeBits();
+                this.GPUDefragmentationMemoryTypeBits = memTypeBits;
+            }
+            return memTypeBits;
         }
 
         private long CalcPreferredBlockSize(int memTypeIndex)
@@ -1199,7 +1074,7 @@ namespace VMASharp
 
             Debug.Assert((uint)heapIndex < Vk.MaxMemoryHeaps);
 
-            var heapSize = (long)Unsafe.Add(ref this.MemoryProperties.MemoryHeaps_0, heapIndex).Size;
+            var heapSize = (long)Unsafe.Add(ref this.memoryProperties.MemoryHeaps_0, heapIndex).Size;
 
             return Helpers.AlignUp(heapSize <= SmallHeapMaxSize ? (heapSize / 8) : this.PreferredLargeHeapBlockSize, 32);
         }
@@ -1256,8 +1131,6 @@ namespace VMASharp
                                                 (finalCreateInfo.Flags & AllocationCreateFlags.WithinBudget) != 0,
                                                 (finalCreateInfo.Flags & AllocationCreateFlags.Mapped) != 0,
                                                 finalCreateInfo.UserData,
-                                                dedicatedBuffer,
-                                                dedicatedImage,
                                                 allocationCount);
         }
 
@@ -1348,12 +1221,12 @@ namespace VMASharp
 
             this.Budget.AddAllocation(this.MemoryTypeIndexToHeapIndex(memTypeIndex), size);
 
-            //this.FillAllocation(allocation, Helpers.AllocationFillPattern_Created);
+            this.FillAllocation(allocation, Helpers.AllocationFillPattern_Created);
 
             return allocation;
         }
 
-        private Allocation[] AllocateDedicatedMemory(long size, SuballocationType suballocType, int memTypeIndex, bool withinBudget, bool map, object userData, Buffer dedicatedBuffer, Image dedicatedImage, int allocationCount)
+        private Allocation[] AllocateDedicatedMemory(long size, SuballocationType suballocType, int memTypeIndex, bool withinBudget, bool map, object userData, int allocationCount)
         {
             int heapIndex = this.MemoryTypeIndexToHeapIndex(memTypeIndex);
 
@@ -1371,24 +1244,6 @@ namespace VMASharp
                 MemoryTypeIndex = (uint)memTypeIndex,
                 AllocationSize = (ulong)size
             };
-
-            MemoryDedicatedAllocateInfo dedicatedAllocInfo;
-
-            if (this.VulkanAPIVersion >= new Version32(1, 1, 0) || this.UseKhrDedicatedAllocation)
-            {
-                dedicatedAllocInfo = new MemoryDedicatedAllocateInfo { SType = StructureType.MemoryDedicatedAllocateInfo };
-
-                if (dedicatedBuffer.Handle != default)
-                {
-                    dedicatedAllocInfo.Buffer = dedicatedBuffer;
-                    allocInfo.PNext = &dedicatedAllocInfo;
-                }
-                else if (dedicatedImage.Handle != default)
-                {
-                    dedicatedAllocInfo.Image = dedicatedImage;
-                    allocInfo.PNext = &dedicatedAllocInfo;
-                }
-            }
 
             int allocIndex = 0;
             Result res = Result.Success;
@@ -1474,22 +1329,19 @@ namespace VMASharp
                 AllocationSize = (ulong)size
             };
 
-            MemoryDedicatedAllocateInfo dedicatedAllocInfo;
+            Debug.Assert(!(dedicatedBuffer.Handle != default && dedicatedImage.Handle != default), "dedicated buffer and dedicated image were both specified");
 
-            if (this.VulkanAPIVersion >= new Version32(1, 1, 0) || this.UseKhrDedicatedAllocation)
+            var dedicatedAllocInfo = new MemoryDedicatedAllocateInfo { SType = StructureType.MemoryDedicatedAllocateInfo };
+
+            if (dedicatedBuffer.Handle != default)
             {
-                dedicatedAllocInfo = new MemoryDedicatedAllocateInfo { SType = StructureType.MemoryDedicatedAllocateInfo };
-
-                if (dedicatedBuffer.Handle != default)
-                {
                     dedicatedAllocInfo.Buffer = dedicatedBuffer;
                     allocInfo.PNext = &dedicatedAllocInfo;
                 }
                 else if (dedicatedImage.Handle != default)
                 {
-                    dedicatedAllocInfo.Image = dedicatedImage;
-                    allocInfo.PNext = &dedicatedAllocInfo;
-                }
+                dedicatedAllocInfo.Image = dedicatedImage;
+                allocInfo.PNext = &dedicatedAllocInfo;
             }
 
             var alloc = this.AllocateDedicatedMemoryPage(size, suballocType, memTypeIndex, allocInfo, map, userData);

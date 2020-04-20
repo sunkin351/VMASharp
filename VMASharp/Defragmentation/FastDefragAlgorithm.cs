@@ -5,6 +5,8 @@ using VMASharp;
 
 namespace VMASharp.Defragmentation
 {
+    using Metadata;
+
     internal sealed class FastDefragAlgorithm : DefragmentationAlgorithm
     {
         private readonly bool overlappingMoveSupported;
