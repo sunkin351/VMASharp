@@ -290,12 +290,48 @@ namespace VMASharp
 
         public int? FindMemoryTypeIndexForBufferInfo(in BufferCreateInfo bufferInfo, in AllocationCreateInfo allocInfo)
         {
-            throw new NotImplementedException();
+            Buffer buffer;
+            fixed (BufferCreateInfo* pBufferInfo = &bufferInfo)
+            {
+                var res = VkApi.CreateBuffer(this.Device, pBufferInfo, null, &buffer);
+
+                if (res != Result.Success)
+                {
+                    throw new VulkanResultException(res);
+                }
+            }
+
+            MemoryRequirements memReq;
+            VkApi.GetBufferMemoryRequirements(this.Device, buffer, &memReq);
+
+            var tmp = this.FindMemoryTypeIndex(memReq.MemoryTypeBits, in allocInfo);
+
+            VkApi.DestroyBuffer(this.Device, buffer, null);
+
+            return tmp;
         }
 
         public int? FindMemoryTypeIndexForImageInfo(in ImageCreateInfo imageInfo, in AllocationCreateInfo allocInfo)
         {
-            throw new NotImplementedException();
+            Image image;
+            fixed (ImageCreateInfo* pImageInfo = &imageInfo)
+            {
+                var res = VkApi.CreateImage(this.Device, pImageInfo, null, &image);
+
+                if (res != Result.Success)
+                {
+                    throw new VulkanResultException(res);
+                }
+            }
+
+            MemoryRequirements memReq;
+            VkApi.GetImageMemoryRequirements(this.Device, image, &memReq);
+
+            var tmp = this.FindMemoryTypeIndex(memReq.MemoryTypeBits, in allocInfo);
+
+            VkApi.DestroyImage(this.Device, image, null);
+
+            return tmp;
         }
 
         public Allocation AllocateMemory(in MemoryRequirements requirements, in AllocationCreateInfo createInfo)
