@@ -1,4 +1,4 @@
-#pragma warning disable CA1063
+﻿#pragma warning disable CA1063
 
 using System;
 using System.Collections.Generic;
@@ -220,12 +220,12 @@ namespace VMASharp
 
         public void Flush(long offset, long size)
         {
-
+            Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Flush);
         }
 
         public void Invalidate(long offset, long size)
         {
-
+            Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Invalidate);
         }
 
         public abstract IntPtr Map();
