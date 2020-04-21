@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -105,7 +105,7 @@ namespace VulkanCube
             DeviceCreateInfo createInfo = new DeviceCreateInfo
             {
                 SType = StructureType.DeviceCreateInfo,
-                PNext = &depthStencilFeature,
+                //PNext = &depthStencilFeature,
                 QueueCreateInfoCount = infoCount,
                 PQueueCreateInfos = queueInfos,
                 EnabledExtensionCount = (uint)RequiredDeviceExtensions.Length,

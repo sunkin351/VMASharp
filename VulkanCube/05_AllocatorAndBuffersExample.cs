@@ -72,14 +72,14 @@ namespace VulkanCube
 
             VulkanMemoryAllocatorCreateInfo createInfo = new VulkanMemoryAllocatorCreateInfo
             {
+                VulkanAPIObject = VkApi,
                 Instance = this.Instance,
                 PhysicalDevice = this.PhysicalDevice,
                 LogicalDevice = this.Device,
                 PreferredLargeHeapBlockSize = 64L * 1024 * 1024,
-                VulkanAPIVersion = (Version32)version
+                VulkanAPIVersion = (Version32)version,
+                UseExtMemoryBudget = true
             };
-
-            VulkanMemoryAllocator.SetAPI(VkApi);
 
             return new VulkanMemoryAllocator(createInfo);
         }
