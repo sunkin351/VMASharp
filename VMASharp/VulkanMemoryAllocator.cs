@@ -152,6 +152,10 @@ namespace VMASharp
                 alloc.Mutex = new ReaderWriterLockSlim();
             }
 
+            if (UseExtMemoryBudget)
+            {
+                UpdateVulkanBudget();
+            }
         }
 
         public int CurrentFrameIndex { get; set; }
@@ -1446,7 +1450,126 @@ namespace VMASharp
 
         private void UpdateVulkanBudget()
         {
-            throw new NotImplementedException();
+            Debug.Assert(UseExtMemoryBudget);
+
+            PhysicalDeviceMemoryBudgetPropertiesEXT budgetProps = new PhysicalDeviceMemoryBudgetPropertiesEXT(StructureType.PhysicalDeviceMemoryBudgetPropertiesExt);
+
+            PhysicalDeviceMemoryProperties2 memProps = new PhysicalDeviceMemoryProperties2(StructureType.PhysicalDeviceMemoryProperties2);
+
+            //memProps.PNext = &budgetProps;
+
+            VkApi.GetPhysicalDeviceMemoryProperties2(this.PhysicalDevice, &memProps);
+
+            Budget.BudgetMutex.EnterWriteLock();
+            try
+            {
+                for (int i = 0; i < MemoryHeapCount; ++i)
+                {
+                    ref var data = ref Budget.BudgetData[i];
+
+                    data.VulkanUsage = (long)budgetProps.HeapUsage[i];
+                    data.VulkanBudget = (long)budgetProps.HeapBudget[i];
+
+                    data.BlockBytesAtBudgetFetch = data.BlockBytes;
+
+                    // Some bugged drivers return the budget incorrectly, e.g. 0 or much bigger than heap size.
+
+                    ref var heap = ref this.MemoryHeap(i);
+
+                    if (data.VulkanBudget == 0)
+                    {
+                        data.VulkanBudget = (long)(heap.Size * 8 / 10);
+                    }
+                    else if ((ulong)data.VulkanBudget > heap.Size)
+                    {
+                        data.VulkanBudget = (long)heap.Size;
+                    }
+
+                    if (data.VulkanUsage == 0 && data.BlockBytesAtBudgetFetch > 0)
+                    {
+                        data.VulkanUsage = data.BlockBytesAtBudgetFetch;
+                    }
+                }
+
+                Budget.OperationsSinceBudgetFetch = 0;
+            }
+            finally
+            {
+                Budget.BudgetMutex.ExitWriteLock();
+            }
+        }
+
+        internal void FlushOrInvalidateAllocation(Allocation allocation, long offset, long size, CacheOperation op)
+        {
+            int memTypeIndex = allocation.MemoryTypeIndex;
+            if (size > 0 && this.IsMemoryTypeNonCoherent(memTypeIndex))
+            {
+                long allocSize = allocation.Size;
+
+                Debug.Assert((ulong)offset <= (ulong)allocSize);
+
+                var nonCoherentAtomSize = (long)this.physicalDeviceProperties.Limits.NonCoherentAtomSize;
+
+                MappedMemoryRange memRange = new MappedMemoryRange(memory: allocation.Memory);
+
+                if (allocation is BlockAllocation blockAlloc)
+                {
+                    memRange.Offset = (ulong)Helpers.AlignDown(offset, nonCoherentAtomSize);
+
+                    if (size == long.MaxValue)
+                    {
+                        size = allocSize - offset;
+                    }
+                    else
+                    {
+                        Debug.Assert(offset + size <= allocSize);
+                    }
+
+                    memRange.Size = (ulong)Helpers.AlignUp(size + (offset - (long)memRange.Offset), nonCoherentAtomSize);
+
+                    long allocOffset = blockAlloc.Offset;
+
+                    Debug.Assert(allocOffset % nonCoherentAtomSize == 0);
+
+                    long blockSize = blockAlloc.Block.MetaData.Size;
+
+                    memRange.Offset += (ulong)allocOffset;
+                    memRange.Size = Math.Min(memRange.Size, (ulong)blockSize - memRange.Offset);
+                }
+                else if (allocation is DedicatedAllocation)
+                {
+                    memRange.Offset = (ulong)Helpers.AlignDown(offset, nonCoherentAtomSize);
+
+                    if (size == long.MaxValue)
+                    {
+                        memRange.Size = (ulong)allocSize - memRange.Offset;
+                    }
+                    else
+                    {
+                        Debug.Assert(offset + size <= allocSize);
+
+                        memRange.Size = (ulong)Helpers.AlignUp(size + (offset - (long)memRange.Offset), nonCoherentAtomSize);
+                    }
+                }
+                else
+                {
+                    Debug.Assert(false);
+                    throw new ArgumentException("allocation type is not BlockAllocation or DedicatedAllocation");
+                }
+
+                switch (op)
+                {
+                    case CacheOperation.Flush:
+                        VkApi.FlushMappedMemoryRanges(this.Device, 1, &memRange);
+                        break;
+                    case CacheOperation.Invalidate:
+                        VkApi.InvalidateMappedMemoryRanges(this.Device, 1, &memRange);
+                        break;
+                    default:
+                        Debug.Assert(false);
+                        throw new ArgumentException("Invalid Cache Operation value", nameof(op));
+                }
+            }
         }
 
         internal struct DedicatedAllocationHandler
