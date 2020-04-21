@@ -49,13 +49,13 @@ namespace VulkanCube
                     StencilLoadOp = AttachmentLoadOp.DontCare,
                     StencilStoreOp = AttachmentStoreOp.DontCare,
                     InitialLayout = ImageLayout.Undefined,
-                    FinalLayout = ImageLayout.DepthAttachmentOptimal
+                    FinalLayout = ImageLayout.DepthStencilAttachmentOptimal
                 }
             };
 
             var colorAttachmentRef = new AttachmentReference(0, ImageLayout.ColorAttachmentOptimal);
 
-            var depthAttachmentRef = new AttachmentReference(1, ImageLayout.DepthAttachmentOptimal);
+            var depthAttachmentRef = new AttachmentReference(1, ImageLayout.DepthStencilAttachmentOptimal);
 
             var subpass = new SubpassDescription
             {

@@ -54,19 +54,22 @@ namespace VMASharp
 
         public void Dispose()
         {
-            throw new NotImplementedException();
+            Allocator.DestroyPool(this);
         }
 
-        public uint MakeAllocationsLost()
+        public int MakeAllocationsLost()
         {
-            throw new NotImplementedException();
+            return Allocator.MakePoolAllocationsLost(this);
         }
 
         public Result CheckForCorruption()
         {
-            throw new NotImplementedException();
+            return Allocator.CheckPoolCorruption(this);
         }
 
-
+        public void GetPoolStats(out PoolStats stats)
+        {
+            Allocator.GetPoolStats(this, out stats);
+        }
     }
 }

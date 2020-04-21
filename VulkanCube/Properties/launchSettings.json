@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "VulkanCube": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

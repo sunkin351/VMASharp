@@ -91,6 +91,7 @@ namespace VMASharp
             }
 
             this.Instance = createInfo.Instance;
+            this.PhysicalDevice = createInfo.PhysicalDevice;
             this.Device = createInfo.LogicalDevice;
 
             this.VulkanAPIVersion = createInfo.VulkanAPIVersion;
@@ -1454,9 +1455,7 @@ namespace VMASharp
 
             PhysicalDeviceMemoryBudgetPropertiesEXT budgetProps = new PhysicalDeviceMemoryBudgetPropertiesEXT(StructureType.PhysicalDeviceMemoryBudgetPropertiesExt);
 
-            PhysicalDeviceMemoryProperties2 memProps = new PhysicalDeviceMemoryProperties2(StructureType.PhysicalDeviceMemoryProperties2);
-
-            //memProps.PNext = &budgetProps;
+            PhysicalDeviceMemoryProperties2 memProps = new PhysicalDeviceMemoryProperties2(StructureType.PhysicalDeviceMemoryProperties2, &budgetProps);
 
             VkApi.GetPhysicalDeviceMemoryProperties2(this.PhysicalDevice, &memProps);
 

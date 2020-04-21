@@ -22,7 +22,6 @@ namespace VulkanCube
         {
             this.PhysicalDevice = SelectPhysicalDevice(out this.QueueIndices);
             this.Device = CreateLogicalDevice(out this.GraphicsQueue, out this.PresentQueue);
-
             VkApi.CurrentDevice = this.Device;
 
             if (!VkApi.TryGetExtension(out this.VkSwapchain))

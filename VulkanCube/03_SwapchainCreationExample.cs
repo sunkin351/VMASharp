@@ -98,16 +98,13 @@ namespace VulkanCube
                 throw new VMASharp.VulkanResultException("Failed to retrieve swapchain images!", res);
             }
 
-            Image[] images = new Image[count];
+            var images = stackalloc Image[(int)count];
 
-            fixed (Image* pImages = images)
+            res = VkSwapchain.GetSwapchainImages(this.Device, swapchain, &count, images);
+
+            if (res != Result.Success)
             {
-                res = VkSwapchain.GetSwapchainImages(this.Device, swapchain, &count, pImages);
-
-                if (res != Result.Success)
-                {
-                    throw new VMASharp.VulkanResultException("Failed to retrieve swapchain images!", res);
-                }
+                throw new VMASharp.VulkanResultException("Failed to retrieve swapchain images!", res);
             }
 
             var viewCreateInfo = new ImageViewCreateInfo
@@ -132,7 +129,7 @@ namespace VulkanCube
                 }
             };
 
-            var arr = new SwapchainImage[images.Length];
+            var arr = new SwapchainImage[count];
 
             for (int i = 0; i < arr.Length; ++i)
             {
@@ -162,7 +159,9 @@ namespace VulkanCube
             var res = this.VkSurface.GetPhysicalDeviceSurfaceCapabilities(device, this.WindowSurface, out details.Capabilities);
 
             if (res != Result.Success)
+            {
                 throw new VMASharp.VulkanResultException("Unable to get Surface Capabilities of this physical device!", res);
+            }
 
             uint count = 0;
             res = this.VkSurface.GetPhysicalDeviceSurfaceFormats(device, this.WindowSurface, &count, null);
@@ -224,28 +223,16 @@ namespace VulkanCube
         {
             Debug.Assert(formats.Length > 0);
 
-            foreach (var format in formats)
-            {
-                if (format.Format == Format.B8G8R8A8Unorm)
-                {
-                    return format;
-                }
-            }
+            int i = Array.FindIndex(formats, (SurfaceFormatKHR format) => format.Format == Format.B8G8R8A8Unorm);
 
-            return formats[0];
+            return i < 0 ? formats[0] : formats[i];
         }
 
         private PresentModeKHR ChooseSwapPresentMode(PresentModeKHR[] presentModes)
         {
-            foreach (var availablePresentMode in presentModes)
-            {
-                if (availablePresentMode == PresentModeKHR.PresentModeMailboxKhr)
-                {
-                    return availablePresentMode;
-                }
-            }
+            int i = Array.FindIndex(presentModes, availablePresentMode => availablePresentMode == PresentModeKHR.PresentModeMailboxKhr);
 
-            return PresentModeKHR.PresentModeFifoKhr;
+            return i < 0 ? PresentModeKHR.PresentModeFifoKhr : PresentModeKHR.PresentModeMailboxKhr;
         }
 
         private Extent2D ChooseSwapExtent(in SurfaceCapabilitiesKHR capabilities)

@@ -260,10 +260,10 @@ namespace VulkanCube
             {
                 SType = StructureType.RenderPassBeginInfo,
                 RenderPass = this.RenderPass,
-                RenderArea = { Offset = new Offset2D { X = 0, Y = 0 }, Extent = this.SwapchainExtent },
+                Framebuffer = this.FrameBuffers[framebufferIndex],
+                RenderArea = new Rect2D(new Offset2D(0, 0), this.SwapchainExtent),
                 ClearValueCount = 2,
-                PClearValues = clearValues,
-                Framebuffer = this.FrameBuffers[framebufferIndex]
+                PClearValues = clearValues
             };
 
             BeginCommandBuffer(primary, CommandBufferUsageFlags.CommandBufferUsageOneTimeSubmitBit);

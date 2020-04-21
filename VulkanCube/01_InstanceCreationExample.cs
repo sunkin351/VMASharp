@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
@@ -22,6 +22,7 @@ namespace VulkanCube
         protected readonly IVulkanWindow DisplayWindow;
         protected readonly Instance Instance;
         protected readonly KhrSurface VkSurface;
+
         protected readonly SurfaceKHR WindowSurface;
 
         protected InstanceCreationExample()
@@ -96,20 +97,30 @@ namespace VulkanCube
             };
         }
 
-        private static void SetupInstanceInfo(ApplicationInfo* appInfo, string[] Extensions, string[] layers, out InstanceCreateInfo createInfo)
+        private static void SetupInstanceInfo(ApplicationInfo* appInfo, IReadOnlyList<string> extensions, string[] layers, out InstanceCreateInfo createInfo)
         {
-            IntPtr extPtr, layerPtr;
+            IntPtr extPtr = default, layerPtr = default;
+            uint extCount = 0, layerCount = 0;
 
-            extPtr = SilkMarshal.MarshalStringArrayToPtr(Extensions);
-            layerPtr = SilkMarshal.MarshalStringArrayToPtr(layers);
+            if (extensions != null && extensions.Count > 0)
+            {
+                extPtr = SilkMarshal.MarshalStringArrayToPtr(extensions);
+                extCount = (uint)extensions.Count;
+            }
+            
+            if (layers != null && layers.Length > 0)
+            {
+                layerPtr = SilkMarshal.MarshalStringArrayToPtr(layers);
+                layerCount = (uint)layers.Length;
+            }
 
             createInfo = new InstanceCreateInfo
             {
                 SType = StructureType.InstanceCreateInfo,
                 PApplicationInfo = appInfo,
-                EnabledLayerCount = (uint)layers.Length,
+                EnabledLayerCount = layerCount,
                 PpEnabledLayerNames = (byte**)layerPtr,
-                EnabledExtensionCount = (uint)Extensions.Length,
+                EnabledExtensionCount = extCount,
                 PpEnabledExtensionNames = (byte**)extPtr
             };
         }

@@ -327,14 +327,37 @@ namespace VMASharp
             throw new NotImplementedException();
         }
 
-        public uint CalcAllocationCount()
+        public int CalcAllocationCount()
         {
-            throw new NotImplementedException();
+            int res = 0;
+
+            foreach (var block in blocks)
+            {
+                res += block.MetaData.AllocationCount;
+            }
+
+            return res;
         }
 
         public bool IsBufferImageGranularityConflictPossible()
         {
-            throw new NotImplementedException();
+            if (BufferImageGranularity == 1)
+                return false;
+
+            SuballocationType lastSuballocType = SuballocationType.Free;
+
+            foreach (var block in blocks)
+            {
+                var metadata = block.MetaData as BlockMetadata_Generic;
+                Debug.Assert(metadata != null);
+
+                if (metadata.IsBufferImageGranularityConflictPossible(this.BufferImageGranularity, ref lastSuballocType))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private long CalcMaxBlockSize()
@@ -728,7 +751,8 @@ namespace VMASharp
 
         private void Remove(VulkanMemoryBlock block)
         {
-            throw new NotImplementedException();
+            var res = blocks.Remove(block);
+            Debug.Assert(res, "");
         }
 
         private void IncrementallySortBlocks()
