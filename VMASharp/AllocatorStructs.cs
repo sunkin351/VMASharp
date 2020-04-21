@@ -29,6 +29,8 @@ namespace VMASharp
         public long[]? HeapSizeLimits;
 
         public Version32 VulkanAPIVersion;
+
+        public bool UseExtMemoryBudget;
     }
 
     public struct AllocationCreateInfo

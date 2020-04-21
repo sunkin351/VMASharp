@@ -100,7 +100,7 @@ namespace VMASharp
                 this.VulkanAPIVersion = Vk.Version10;
             }
 
-            this.UseExtMemoryBudget = VkApi.IsExtensionPresent("VK_EXT_memory_budget");
+            this.UseExtMemoryBudget = createInfo.UseExtMemoryBudget;
 
             VkApi.GetPhysicalDeviceProperties(createInfo.PhysicalDevice, out this.physicalDeviceProperties);
             VkApi.GetPhysicalDeviceMemoryProperties(createInfo.PhysicalDevice, out this.memoryProperties);
