@@ -675,7 +675,7 @@ namespace VMASharp
             return null;
         }
 
-        private Result CreateBlock(long blockSize, out int newBlockIndex)
+        private unsafe Result CreateBlock(long blockSize, out int newBlockIndex)
         {
             newBlockIndex = -1;
 
@@ -685,6 +685,14 @@ namespace VMASharp
                 MemoryTypeIndex = (uint)this.MemoryTypeIndex,
                 AllocationSize = (ulong)blockSize
             };
+
+            // Every standalone block can potentially contain a buffer with BufferUsageFlags.BufferUsageShaderDeviceAddressBitKhr - always enable the feature
+            MemoryAllocateFlagsInfoKHR allocFlagsInfo = new MemoryAllocateFlagsInfoKHR(StructureType.MemoryAllocateFlagsInfoKhr);
+            if (Allocator.UseKhrBufferDeviceAddress)
+            {
+                allocFlagsInfo.Flags = MemoryAllocateFlags.MemoryAllocateDeviceAddressBitKhr;
+                info.PNext = &allocFlagsInfo;
+            }
 
             var res = this.Allocator.AllocateVulkanMemory(in info, out DeviceMemory mem);
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -10,11 +10,14 @@ namespace VMASharp
 {
     public struct VulkanMemoryAllocatorCreateInfo
     {
-        public Vk VulkanAPIObject;
         /// <summary>
         /// Flags for created allocator
         /// </summary>
         public AllocatorCreateFlags Flags;
+
+        public Version32 VulkanAPIVersion;
+
+        public Vk VulkanAPIObject;
 
         public Instance Instance;
 
@@ -24,12 +27,9 @@ namespace VMASharp
 
         public long PreferredLargeHeapBlockSize;
 
-        public int FrameInUseCount;
-
         public long[]? HeapSizeLimits;
 
-        public Version32 VulkanAPIVersion;
-
+        public int FrameInUseCount;
     }
 
     public struct AllocationCreateInfo
