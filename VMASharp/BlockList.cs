@@ -147,48 +147,6 @@ namespace VMASharp
             }
         }
 
-        public Allocation[] Allocate(int currentFrame, long size, long alignment, in AllocationCreateInfo allocInfo, SuballocationType suballocType, int allocationCount)
-        {
-            if (this.IsCorruptedDetectionEnabled)
-            {
-                size = Helpers.AlignUp(size, sizeof(uint));
-                alignment = Helpers.AlignUp(alignment, sizeof(uint));
-            }
-
-            int allocIdx = 0;
-            Allocation[] allocations = new Allocation[allocationCount];
-
-            this.mutex.EnterWriteLock();
-            try
-            {
-                try
-                {
-                    do
-                    {
-                        allocations[allocIdx] = this.AllocatePage(currentFrame, size, alignment, in allocInfo, suballocType);
-
-                        allocIdx += 1;
-                    }
-                    while (allocIdx < allocations.Length);
-                }
-                finally
-                {
-                    this.mutex.ExitWriteLock();
-                }
-            }
-            catch
-            {
-                while (allocIdx-- > 0)
-                {
-                    this.Free(allocations[allocIdx]);
-                }
-
-                throw;
-            }
-
-            return allocations;
-        }
-
         public Allocation Allocate(int currentFrame, long size, long alignment, in AllocationCreateInfo allocInfo, SuballocationType suballocType)
         {
             this.mutex.EnterWriteLock();
