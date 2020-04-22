@@ -218,14 +218,14 @@ namespace VMASharp
             }
         }
 
-        public void Flush(long offset, long size)
+        public Result Flush(long offset, long size)
         {
-            Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Flush);
+            return Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Flush);
         }
 
-        public void Invalidate(long offset, long size)
+        public Result Invalidate(long offset, long size)
         {
-            Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Invalidate);
+            return Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Invalidate);
         }
 
         public abstract IntPtr Map();

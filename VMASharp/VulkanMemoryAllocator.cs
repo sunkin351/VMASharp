@@ -1549,7 +1549,7 @@ namespace VMASharp
             }
         }
 
-        internal void FlushOrInvalidateAllocation(Allocation allocation, long offset, long size, CacheOperation op)
+        internal Result FlushOrInvalidateAllocation(Allocation allocation, long offset, long size, CacheOperation op)
         {
             int memTypeIndex = allocation.MemoryTypeIndex;
             if (size > 0 && this.IsMemoryTypeNonCoherent(memTypeIndex))
@@ -1610,16 +1610,16 @@ namespace VMASharp
                 switch (op)
                 {
                     case CacheOperation.Flush:
-                        VkApi.FlushMappedMemoryRanges(this.Device, 1, &memRange);
-                        break;
+                        return VkApi.FlushMappedMemoryRanges(this.Device, 1, &memRange);
                     case CacheOperation.Invalidate:
-                        VkApi.InvalidateMappedMemoryRanges(this.Device, 1, &memRange);
-                        break;
+                        return VkApi.InvalidateMappedMemoryRanges(this.Device, 1, &memRange);
                     default:
                         Debug.Assert(false);
                         throw new ArgumentException("Invalid Cache Operation value", nameof(op));
                 }
             }
+
+            return Result.Success;
         }
 
         internal struct DedicatedAllocationHandler
