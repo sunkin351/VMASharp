@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -30,7 +30,6 @@ namespace VMASharp
 
         public Version32 VulkanAPIVersion;
 
-        public bool UseExtMemoryBudget;
     }
 
     public struct AllocationCreateInfo

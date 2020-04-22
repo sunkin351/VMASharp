@@ -28,8 +28,9 @@ namespace VMASharp
 
         internal readonly Version32 VulkanAPIVersion;
 
-        internal bool UseExtMemoryBudget;
-        internal bool UseAMDDeviceCoherentMemory;
+        internal readonly bool UseExtMemoryBudget;
+        internal readonly bool UseAMDDeviceCoherentMemory;
+        internal readonly bool UseKhrBufferDeviceAddress;
 
         internal uint HeapSizeLimitMask;
 
@@ -101,7 +102,9 @@ namespace VMASharp
                 this.VulkanAPIVersion = Vk.Version10;
             }
 
-            this.UseExtMemoryBudget = createInfo.UseExtMemoryBudget;
+            this.UseExtMemoryBudget = (createInfo.Flags & AllocatorCreateFlags.ExtMemoryBudget) != 0;
+            this.UseAMDDeviceCoherentMemory = (createInfo.Flags & AllocatorCreateFlags.AMDDeviceCoherentMemory) != 0;
+            this.UseKhrBufferDeviceAddress = (createInfo.Flags & AllocatorCreateFlags.BufferDeviceAddress) != 0;
 
             VkApi.GetPhysicalDeviceProperties(createInfo.PhysicalDevice, out this.physicalDeviceProperties);
             VkApi.GetPhysicalDeviceMemoryProperties(createInfo.PhysicalDevice, out this.memoryProperties);
