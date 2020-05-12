@@ -12,6 +12,9 @@ using Buffer = Silk.NET.Vulkan.Buffer;
 
 namespace VMASharp
 {
+    /// <summary>
+    /// The object containing details on a suballocation of Vulkan Memory
+    /// </summary>
     public unsafe abstract class Allocation : IDisposable
     {
         internal VulkanMemoryAllocator Allocator { get; }
@@ -87,7 +90,9 @@ namespace VMASharp
             this.lastUseFrameIndex = currentFrameIndex;
         }
 
-
+        /// <summary>
+        /// If this allocation is mapped, returns a pointer to the mapped memory region. Returns Null otherwise.
+        /// </summary>
         public abstract IntPtr MappedData { get; }
 
         public void Dispose()
@@ -218,11 +223,23 @@ namespace VMASharp
             }
         }
 
+        /// <summary>
+        /// Flushes a specified region of memory
+        /// </summary>
+        /// <param name="offset">Offset in this allocation</param>
+        /// <param name="size">Size of region to flush</param>
+        /// <returns>The result of the operation</returns>
         public Result Flush(long offset, long size)
         {
             return Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Flush);
         }
 
+        /// <summary>
+        /// Invalidates a specified region of memory
+        /// </summary>
+        /// <param name="offset">Offset in this allocation</param>
+        /// <param name="size">Size of region to Invalidate</param>
+        /// <returns>The result of the operation</returns>
         public Result Invalidate(long offset, long size)
         {
             return Allocator.FlushOrInvalidateAllocation(this, offset, size, CacheOperation.Invalidate);
