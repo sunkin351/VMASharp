@@ -201,7 +201,7 @@ namespace VMASharp
                 }
                 else if (this.hasEmptyBlock && canDeleteBlock)
                 {
-                    block = this.blocks[this.blocks.Count - 1];
+                    block = this.blocks[^1];
 
                     if (block.MetaData.IsEmpty)
                     {

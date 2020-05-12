@@ -22,7 +22,7 @@ namespace VMASharp
         const long SmallHeapMaxSize = 1024L * 1024 * 1024;
         const BufferUsageFlags UnknownBufferUsage = unchecked((BufferUsageFlags)uint.MaxValue);
 
-        internal Vk VkApi { get; private set; }
+        internal Vk VkApi { get; }
 
         internal readonly Device Device;
         internal readonly Instance Instance;
@@ -351,6 +351,7 @@ namespace VMASharp
         }
 
         public Allocation AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo)
+        public Allocation AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo, bool BindToBuffer = false)
         {
             DedicatedAllocationInfo dedicatedInfo = DedicatedAllocationInfo.Default;
 
@@ -358,10 +359,18 @@ namespace VMASharp
 
             this.GetBufferMemoryRequirements(buffer, out MemoryRequirements memReq, out dedicatedInfo.RequiresDedicatedAllocation, out dedicatedInfo.PrefersDedicatedAllocation);
 
-            return this.AllocateMemory(in memReq, in dedicatedInfo, in createInfo, SuballocationType.Buffer);
+            var alloc = this.AllocateMemory(in memReq, in dedicatedInfo, in createInfo, SuballocationType.Buffer);
+
+            if (BindToBuffer)
+            {
+                alloc.BindBufferMemory(buffer);
+            }
+
+            return alloc;
         }
 
         public Allocation AllocateMemoryForImage(Image image, in AllocationCreateInfo createInfo)
+        public Allocation AllocateMemoryForImage(Image image, in AllocationCreateInfo createInfo, bool BindToImage = false)
         {
             DedicatedAllocationInfo dedicatedInfo = DedicatedAllocationInfo.Default;
 
@@ -369,7 +378,14 @@ namespace VMASharp
 
             this.GetImageMemoryRequirements(image, out var memReq, out dedicatedInfo.RequiresDedicatedAllocation, out dedicatedInfo.PrefersDedicatedAllocation);
 
-            return this.AllocateMemory(in memReq, in dedicatedInfo, in createInfo, SuballocationType.Image_Unknown);
+            var alloc =  this.AllocateMemory(in memReq, in dedicatedInfo, in createInfo, SuballocationType.Image_Unknown);
+
+            if (BindToImage)
+            {
+                alloc.BindImageMemory(image);
+            }
+
+            return alloc;
         }
 
         public Result CheckCorruption(uint memoryTypeBits)
@@ -1180,6 +1196,7 @@ namespace VMASharp
 
             MemoryAllocateInfo allocInfo = new MemoryAllocateInfo
             {
+                SType = StructureType.MemoryAllocateInfo,
                 MemoryTypeIndex = (uint)memTypeIndex,
                 AllocationSize = (ulong)size
             };
