@@ -24,7 +24,7 @@ namespace VMASharp
 
         internal Vk VkApi { get; }
 
-        internal readonly Device Device;
+        public Device Device { get; }
         internal readonly Instance Instance;
 
         internal readonly Version32 VulkanAPIVersion;
@@ -675,7 +675,7 @@ namespace VMASharp
 
                 long alignmentForType = Math.Max((long)memReq.Alignment, this.GetMemoryTypeMinAlignment((int)typeIndex));
 
-                return this.AllocateMemoryOfType((long)memReq.Size, alignmentForType, in dedicatedInfo, createInfo, (int)typeIndex, suballocType);
+                return this.AllocateMemoryOfType((long)memReq.Size, alignmentForType, in dedicatedInfo, in createInfo, (int)typeIndex, suballocType);
             }
         }
 
