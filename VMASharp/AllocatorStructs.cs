@@ -30,6 +30,25 @@ namespace VMASharp
         public long[]? HeapSizeLimits;
 
         public int FrameInUseCount;
+
+        public VulkanMemoryAllocatorCreateInfo(Version32 vulkanApiVersion,
+                                               Vk vulkanApiObject,
+                                               Instance instance, PhysicalDevice physicalDevice, Device logicalDevice,
+                                               AllocatorCreateFlags flags = default,
+                                               long preferredLargeHeapBlockSize = 0,
+                                               long[]? heapSizeLimits = null,
+                                               int frameInUseCount = 0)
+        {
+            Flags = flags;
+            VulkanAPIVersion = vulkanApiVersion;
+            VulkanAPIObject = vulkanApiObject;
+            Instance = instance;
+            PhysicalDevice = physicalDevice;
+            LogicalDevice = logicalDevice;
+            PreferredLargeHeapBlockSize = preferredLargeHeapBlockSize;
+            HeapSizeLimits = heapSizeLimits;
+            FrameInUseCount = frameInUseCount;
+        }
     }
 
     public struct AllocationCreateInfo
@@ -46,13 +65,35 @@ namespace VMASharp
 
         public uint MemoryTypeBits;
 
-        public VulkanMemoryPool Pool;
+        public VulkanMemoryPool? Pool;
 
-        public object UserData;
+        public object? UserData;
+
+        public AllocationCreateInfo(AllocationCreateFlags flags = default,
+                                    AllocationStrategyFlags strategy = default,
+                                    MemoryUsage usage = default,
+                                    MemoryPropertyFlags requiredFlags = default,
+                                    MemoryPropertyFlags preferredFlags = default,
+                                    uint memoryTypeBits = 0,
+                                    VulkanMemoryPool? pool = null,
+                                    object? userData = null)
+        {
+            Flags = flags;
+            Strategy = strategy;
+            Usage = usage;
+            RequiredFlags = requiredFlags;
+            PreferredFlags = preferredFlags;
+            MemoryTypeBits = memoryTypeBits;
+            Pool = pool;
+            UserData = userData;
+        }
     }
 
     public struct AllocationPoolCreateInfo
     {
+        /// <summary>
+        /// Memory type index to allocate from, non-optional
+        /// </summary>
         public int MemoryTypeIndex;
 
         public PoolCreateFlags Flags;
@@ -67,6 +108,22 @@ namespace VMASharp
 
         public Func<long, Metadata.BlockMetadata>? AllocationAlgorithmCreate;
 
+        public AllocationPoolCreateInfo(int memoryTypeIndex,
+                                        PoolCreateFlags flags = 0,
+                                        long blockSize = 0,
+                                        int minBlockCount = 0,
+                                        int maxBlockCount = 0,
+                                        int frameInUseCount = 0,
+                                        Func<long, Metadata.BlockMetadata>? allocationAlgorithemCreate = null)
+        {
+            MemoryTypeIndex = memoryTypeIndex;
+            Flags = flags;
+            BlockSize = blockSize;
+            MinBlockCount = minBlockCount;
+            MaxBlockCount = maxBlockCount;
+            FrameInUseCount = frameInUseCount;
+            AllocationAlgorithmCreate = allocationAlgorithemCreate;
+        }
     }
 
     public struct AllocationContext
