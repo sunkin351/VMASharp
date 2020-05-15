@@ -343,6 +343,12 @@ namespace VMASharp
             return tmp;
         }
 
+        /// <summary>
+        /// Allocate a block of memory
+        /// </summary>
+        /// <param name="requirements">Memory Requirements for the allocation</param>
+        /// <param name="createInfo">Allocation Creation information</param>
+        /// <returns>An object representing the allocation</returns>
         public Allocation AllocateMemory(in MemoryRequirements requirements, in AllocationCreateInfo createInfo)
         {
             DedicatedAllocationInfo dedicatedInfo = DedicatedAllocationInfo.Default;
@@ -350,7 +356,14 @@ namespace VMASharp
             return this.AllocateMemory(in requirements, in dedicatedInfo, in createInfo, SuballocationType.Unknown);
         }
 
-        public Allocation AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo)
+        /// <summary>
+        /// Allocate a block of memory with the memory requirements of <paramref name="buffer"/>,
+        /// optionally binding it to the allocation
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="createInfo"></param>
+        /// <param name="BindToBuffer">Whether to bind <paramref name="buffer"> to the allocation</param>
+        /// <returns></returns>
         public Allocation AllocateMemoryForBuffer(Buffer buffer, in AllocationCreateInfo createInfo, bool BindToBuffer = false)
         {
             DedicatedAllocationInfo dedicatedInfo = DedicatedAllocationInfo.Default;
@@ -369,7 +382,14 @@ namespace VMASharp
             return alloc;
         }
 
-        public Allocation AllocateMemoryForImage(Image image, in AllocationCreateInfo createInfo)
+        /// <summary>
+        /// Allocate a block of memory with the memory requirements of <paramref name="image"/>,
+        /// optionally binding it to the allocation
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="createInfo"></param>
+        /// <param name="BindToImage">Whether to bind <paramref name="image"> to the allocation</param>
+        /// <returns></returns>
         public Allocation AllocateMemoryForImage(Image image, in AllocationCreateInfo createInfo, bool BindToImage = false)
         {
             DedicatedAllocationInfo dedicatedInfo = DedicatedAllocationInfo.Default;
