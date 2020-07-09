@@ -22,9 +22,8 @@ namespace VulkanCube
         {
             this.PhysicalDevice = SelectPhysicalDevice(out this.QueueIndices);
             this.Device = CreateLogicalDevice(out this.GraphicsQueue, out this.PresentQueue);
-            VkApi.CurrentDevice = this.Device;
 
-            if (!VkApi.TryGetExtension(out this.VkSwapchain))
+            if (!VkApi.TryGetDeviceExtension(this.Instance, this.Device, out this.VkSwapchain))
             {
                 throw new Exception("VK_KHR_Swapchain is missing or not specified");
             }

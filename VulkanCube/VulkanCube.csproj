@@ -14,11 +14,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.GLFW" Version="1.0.1" />
-    <PackageReference Include="Silk.NET.Vulkan" Version="1.0.1" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="1.0.1" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="1.0.1" />
-    <PackageReference Include="Silk.NET.Windowing" Version="1.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Silk.NET.GLFW" Version="1.4.0" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="1.4.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="1.4.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="1.4.0" />
+    <PackageReference Include="Silk.NET.Windowing" Version="1.4.0" />
   </ItemGroup>
 
   <ItemGroup>

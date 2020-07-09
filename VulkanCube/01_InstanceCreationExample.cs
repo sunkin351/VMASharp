@@ -6,6 +6,7 @@ using Silk.NET.Windowing;
 using Silk.NET.Windowing.Common;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
+using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Core.Native;
 
 namespace VulkanCube
@@ -19,7 +20,7 @@ namespace VulkanCube
             VkApi = Vk.GetApi();
         }
 
-        protected readonly IVulkanWindow DisplayWindow;
+        protected readonly IWindow DisplayWindow;
         protected readonly Instance Instance;
         protected readonly KhrSurface VkSurface;
 
@@ -30,25 +31,25 @@ namespace VulkanCube
             this.DisplayWindow = CreateWindow();
             this.Instance = CreateInstance();
 
-            VkApi.CurrentInstance = this.Instance;
-
-            if (!VkApi.TryGetExtension(out VkSurface))
+            if (!VkApi.TryGetInstanceExtension(this.Instance, out VkSurface))
             {
                 throw new Exception("VK_KHR_Surface is missing or not specified");
             }
 
-            this.WindowSurface = this.DisplayWindow.CreateSurface<AllocationCallbacks>(this.Instance.ToHandle(), null).ToSurface();
+            this.WindowSurface = this.DisplayWindow.VkSurface.Create<AllocationCallbacks>(this.Instance.ToHandle(), null).ToSurface();
         }
 
-        private static IVulkanWindow CreateWindow()
+        private static IWindow CreateWindow()
         {
             var options = WindowOptions.DefaultVulkan;
 
             options.Title = "Hello Cube";
-            options.FramesPerSecond = 30;
+            options.FramesPerSecond = 60;
             options.UseSingleThreadedWindow = true;
 
-            if (!(Window.Create(options) is IVulkanWindow window) || !window.IsVulkanSupported)
+            var window = Window.Create(options);
+
+            if (window.VkSurface == null)
                 throw new NotSupportedException("Vulkan is not supported.");
 
             window.Initialize();
@@ -81,20 +82,17 @@ namespace VulkanCube
 
         private static void SetupAppInfo(out ApplicationInfo appInfo)
         {
-            IntPtr appName, engineName;
-
-            appName = Marshal.StringToHGlobalAnsi("Hello Cube");
-            engineName = Marshal.StringToHGlobalAnsi("Custom Engine");
+            IntPtr appName = Marshal.StringToHGlobalAnsi("Hello Cube");
+            IntPtr engineName = Marshal.StringToHGlobalAnsi("Custom Engine");
 
             appInfo = new ApplicationInfo
-            {
-                SType = StructureType.ApplicationInfo,
-                PApplicationName = (byte*)appName,
-                ApplicationVersion = new Version32(0, 0, 1),
-                PEngineName = (byte*)engineName,
-                EngineVersion = new Version32(0, 0, 1),
-                ApiVersion = Vk.Version11
-            };
+            (
+                pApplicationName: (byte*)appName,
+                applicationVersion: new Version32(0, 0, 1),
+                pEngineName: (byte*)engineName,
+                engineVersion: new Version32(0, 0, 1),
+                apiVersion: Vk.Version11
+            );
         }
 
         private static void SetupInstanceInfo(ApplicationInfo* appInfo, IReadOnlyList<string> extensions, string[] layers, out InstanceCreateInfo createInfo)
@@ -114,15 +112,11 @@ namespace VulkanCube
                 layerCount = (uint)layers.Length;
             }
 
-            createInfo = new InstanceCreateInfo
-            {
-                SType = StructureType.InstanceCreateInfo,
-                PApplicationInfo = appInfo,
-                EnabledLayerCount = layerCount,
-                PpEnabledLayerNames = (byte**)layerPtr,
-                EnabledExtensionCount = extCount,
-                PpEnabledExtensionNames = (byte**)extPtr
-            };
+            createInfo = new InstanceCreateInfo(pApplicationInfo: appInfo,
+                                                enabledLayerCount: layerCount,
+                                                ppEnabledLayerNames: (byte**)layerPtr,
+                                                enabledExtensionCount: extCount,
+                                                ppEnabledExtensionNames: (byte**)extPtr);
         }
 
         private static void CleanupAppInfo(in ApplicationInfo appInfo)
@@ -148,11 +142,11 @@ namespace VulkanCube
 
         private string[] GetWindowExtensions()
         {
-            byte** ptr = (byte**)this.DisplayWindow.GetRequiredExtensions(out uint count);
+            var ptr = (IntPtr)this.DisplayWindow.VkSurface.GetRequiredExtensions(out uint count);
 
             string[] arr = new string[count];
 
-            SilkMarshal.CopyPtrToStringArray((IntPtr)ptr, arr);
+            SilkMarshal.CopyPtrToStringArray(ptr, arr);
 
             return arr;
         }
