@@ -41,7 +41,7 @@ namespace VulkanCube
 
         public override void Dispose()
         {
-            VkApi.FreeDescriptorSets(this.Device, this.DescriptorPool, (uint)this.DescriptorSets.Length, ref DescriptorSets[0]);
+            VkApi.FreeDescriptorSets(this.Device, this.DescriptorPool, (uint)this.DescriptorSets.Length, in DescriptorSets[0]);
 
             VkApi.DestroyDescriptorPool(this.Device, this.DescriptorPool, null);
 

@@ -9,12 +9,12 @@ using Silk.NET.Vulkan;
 namespace VulkanCube
 {
     [DebuggerDisplay("Position: {Position}, Color: {Color}")]
-    public unsafe struct Vertex
+    public unsafe struct PositionColorVertex
     {
         public static VertexInputBindingDescription BindingDescription = new VertexInputBindingDescription
         {
             Binding = 0,
-            Stride = (uint)sizeof(Vertex),
+            Stride = (uint)sizeof(PositionColorVertex),
             InputRate = VertexInputRate.Vertex
         };
 
@@ -27,92 +27,122 @@ namespace VulkanCube
         public Vector3 Position;
         public Vector3 Color;
 
-        public Vertex(Vector3 position, Vector3 color)
+        public PositionColorVertex(Vector3 position, Vector3 color)
         {
             this.Position = position;
             this.Color = color;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is PositionColorVertex vert && this == vert;
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Position, Color);
+        }
+
+        public static bool operator ==(PositionColorVertex left, PositionColorVertex right)
+        {
+            return left.Position == right.Position && left.Color == right.Color;
+        }
+
+        public static bool operator !=(PositionColorVertex left, PositionColorVertex right)
+        {
+            return !(left == right);
+        }
+    }
+
+    public struct InstanceData
+    {
+        public Vector3 InstancePosition;
+
+        public InstanceData(Vector3 position)
+        {
+            InstancePosition = position;
         }
     }
 
     public static class VertexData
     {
-        public static readonly Vertex[] TriangleData = new Vertex[]
+        public static readonly PositionColorVertex[] TriangleData = new PositionColorVertex[]
         {
-            new Vertex
+            new PositionColorVertex
             {
                 Position = new Vector3(0, -0.5f, 0),
                 Color = new Vector3(1, 0, 0)
             },
-            new Vertex
+            new PositionColorVertex
             {
                 Position = new Vector3(0.5f, 0.5f, 0),
                 Color = new Vector3(0, 1, 0)
             },
-            new Vertex
+            new PositionColorVertex
             {
                 Position = new Vector3(-0.5f, 0.5f, 0),
                 Color = new Vector3(0, 0, 1)
             }
         };
 
-        public static readonly Vertex[] CubeData = new Vertex[]
+        public static readonly PositionColorVertex[] CubeData = new PositionColorVertex[]
         {
             //Face 1
-            new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
-            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
-            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new PositionColorVertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
+            new PositionColorVertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new PositionColorVertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
 
-            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
-            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
-            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new PositionColorVertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new PositionColorVertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new PositionColorVertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
 
             //Face 2
-            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
-            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
-            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new PositionColorVertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new PositionColorVertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new PositionColorVertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
 
-            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
-            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
-            new Vertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
+            new PositionColorVertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new PositionColorVertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new PositionColorVertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
 
             //Face 3
-            new Vertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
-            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
-            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new PositionColorVertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
+            new PositionColorVertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new PositionColorVertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
 
-            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
-            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
-            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new PositionColorVertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new PositionColorVertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new PositionColorVertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
 
             //Face 4
-            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
-            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
-            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new PositionColorVertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new PositionColorVertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new PositionColorVertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
 
-            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
-            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
-            new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
+            new PositionColorVertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new PositionColorVertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new PositionColorVertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
 
             //Face 5
-            new Vertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
-            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
-            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new PositionColorVertex(new Vector3(1, 1, 1), new Vector3(1, 1, 1)),
+            new PositionColorVertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new PositionColorVertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
 
-            new Vertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
-            new Vertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
-            new Vertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
+            new PositionColorVertex(new Vector3(1, 1, -1), new Vector3(1, 1, 0)),
+            new PositionColorVertex(new Vector3(-1, 1, 1), new Vector3(0, 1, 1)),
+            new PositionColorVertex(new Vector3(-1, 1, -1), new Vector3(0, 1, 0)),
 
             //Face 6
-            new Vertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
-            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
-            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new PositionColorVertex(new Vector3(1, -1, 1), new Vector3(1, 0, 1)),
+            new PositionColorVertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new PositionColorVertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
 
-            new Vertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
-            new Vertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
-            new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0))
+            new PositionColorVertex(new Vector3(-1, -1, 1), new Vector3(0, 0, 1)),
+            new PositionColorVertex(new Vector3(1, -1, -1), new Vector3(1, 0, 0)),
+            new PositionColorVertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0))
         };
 
-        public static readonly Vertex[] IndexedCubeData;
+        public static readonly PositionColorVertex[] IndexedCubeData;
         //= new Vertex[]
         //{
         //    new Vertex(new Vector3(-1, -1, -1), new Vector3(0, 0, 0)),
@@ -147,14 +177,14 @@ namespace VulkanCube
             (IndexedCubeData, CubeIndexData) = ConvertToIndexedData(CubeData);
         }
 
-        delegate bool VertexCompareEqual(ref Vertex v0, ref Vertex v1);
-        static readonly VertexCompareEqual _defaultCompareEqual = (ref Vertex v0, ref Vertex v1) => v0.Position == v1.Position;
+        delegate bool VertexCompareEqual(ref PositionColorVertex v0, ref PositionColorVertex v1);
+        static readonly VertexCompareEqual _defaultCompareEqual = (ref PositionColorVertex v0, ref PositionColorVertex v1) => v0.Position == v1.Position;
 
-        private static (Vertex[], ushort[]) ConvertToIndexedData(Vertex[] data, VertexCompareEqual? compare = null)
+        private static (PositionColorVertex[], ushort[]) ConvertToIndexedData(PositionColorVertex[] data, VertexCompareEqual? compare = null)
         {
             compare ??= _defaultCompareEqual;
 
-            Vertex[] indexedData = new Vertex[data.Length];
+            PositionColorVertex[] indexedData = new PositionColorVertex[data.Length];
             ushort[] indexData = new ushort[data.Length];
 
             indexedData[0] = data[0];

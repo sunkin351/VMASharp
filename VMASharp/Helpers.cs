@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Numerics;
 using System.Diagnostics;
-
-using Silk.NET.Vulkan;
-using VMASharp;
+using System.Numerics;
+using Silk.NET.Core;
 
 namespace VMASharp
 {
@@ -34,12 +32,12 @@ namespace VMASharp
 
         public static bool IsPow2(int v)
         {
-            return v != 0 && (v & (v - 1)) == 0;
+            return BitOperations.PopCount((uint)v) == 1;
         }
 
         public static bool IsPow2(long v)
         {
-            return v != 0 && (v & (v - 1)) == 0;
+            return BitOperations.PopCount((ulong)v) == 1;
         }
 
         public static int NextPow2(int v)

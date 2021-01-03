@@ -1,4 +1,5 @@
 using Silk.NET.Vulkan;
+using Silk.NET.Core;
 using Silk.NET.Vulkan.Extensions.KHR;
 using System;
 using System.Collections.Generic;
@@ -77,16 +78,6 @@ namespace VMASharp
                 throw new ArgumentNullException("createInfo.PhysicalDevice");
             }
 
-            if (!VkApi.CurrentInstance.HasValue || createInfo.Instance.Handle != VkApi.CurrentInstance.Value.Handle)
-            {
-                throw new ArgumentException("API Instance does not match the Instance passed with 'createInfo'.");
-            }
-
-            if (!VkApi.CurrentDevice.HasValue || createInfo.LogicalDevice.Handle != VkApi.CurrentDevice.Value.Handle)
-            {
-                throw new ArgumentException("API Device does not match the Instance passed with 'createInfo'.");
-            }
-
             if (createInfo.VulkanAPIVersion < Vk.Version11)
             {
                 throw new NotSupportedException("Vulkan API Version of less than 1.1 is not supported");
@@ -121,7 +112,7 @@ namespace VMASharp
 
             if (createInfo.HeapSizeLimits != null)
             {
-                Span<MemoryHeap> memoryHeaps = MemoryMarshal.CreateSpan(ref this.memoryProperties.MemoryHeaps_0, (int)Vk.MaxMemoryHeaps);
+                Span<MemoryHeap> memoryHeaps = MemoryMarshal.CreateSpan(ref this.memoryProperties.MemoryHeaps.Element0, (int)Vk.MaxMemoryHeaps);
 
                 int heapLimitLength = Math.Min(createInfo.HeapSizeLimits.Length, (int)Vk.MaxMemoryHeaps);
 
@@ -533,14 +524,14 @@ namespace VMASharp
         {
             Debug.Assert((uint)index < Vk.MaxMemoryTypes);
 
-            return ref Unsafe.Add(ref this.memoryProperties.MemoryTypes_0, index);
+            return ref Unsafe.Add(ref this.memoryProperties.MemoryTypes.Element0, index);
         }
 
         private ref MemoryHeap MemoryHeap(int index)
         {
             Debug.Assert((uint)index < Vk.MaxMemoryHeaps);
 
-            return ref Unsafe.Add(ref this.memoryProperties.MemoryHeaps_0, index);
+            return ref Unsafe.Add(ref this.memoryProperties.MemoryHeaps.Element0, index);
         }
 
         internal int MemoryTypeIndexToHeapIndex(int typeIndex)
@@ -1109,7 +1100,7 @@ namespace VMASharp
 
             Debug.Assert((uint)heapIndex < Vk.MaxMemoryHeaps);
 
-            var heapSize = (long)Unsafe.Add(ref this.memoryProperties.MemoryHeaps_0, heapIndex).Size;
+            var heapSize = (long)MemoryHeap(heapIndex).Size;
 
             return Helpers.AlignUp(heapSize <= SmallHeapMaxSize ? (heapSize / 8) : this.PreferredLargeHeapBlockSize, 32);
         }
@@ -1294,7 +1285,7 @@ namespace VMASharp
                 handler.Mutex.ExitWriteLock();
             }
 
-            FreeVulkanMemory(allocation.MemoryTypeIndex, allocation.Size, allocation.Memory);
+            FreeVulkanMemory(allocation.MemoryTypeIndex, allocation.Size, allocation.DeviceMemory);
         }
 
         private uint CalculateGpuDefragmentationMemoryTypeBits()
@@ -1385,7 +1376,7 @@ namespace VMASharp
 
                 var nonCoherentAtomSize = (long)this.physicalDeviceProperties.Limits.NonCoherentAtomSize;
 
-                MappedMemoryRange memRange = new MappedMemoryRange(memory: allocation.Memory);
+                MappedMemoryRange memRange = new MappedMemoryRange(memory: allocation.DeviceMemory);
 
                 if (allocation is BlockAllocation blockAlloc)
                 {

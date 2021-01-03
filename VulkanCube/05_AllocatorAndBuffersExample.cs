@@ -5,7 +5,9 @@ using System.Numerics;
 
 using VMASharp;
 using Silk.NET.Vulkan;
+using Silk.NET.Core;
 using Buffer = Silk.NET.Vulkan.Buffer;
+using System.Runtime.CompilerServices;
 
 namespace VulkanCube
 {
@@ -18,10 +20,15 @@ namespace VulkanCube
 
         protected Buffer VertexBuffer;
         protected Buffer IndexBuffer;
+        protected Buffer InstanceBuffer;
+
         protected Allocation VertexAllocation;
         protected Allocation IndexAllocation;
+        protected Allocation InstanceAllocation;
+
         protected uint VertexCount;
         protected uint IndexCount;
+        protected uint InstanceCount;
 
         protected CameraUniform Camera = new CameraUniform();
 
@@ -36,7 +43,10 @@ namespace VulkanCube
 
             CreateVertexBuffer();
             CreateIndexBuffer();
+            CreateInstanceBuffer();
+
             CreateUniformBuffer();
+
             CreateDepthBuffer();
         }
 
@@ -55,6 +65,9 @@ namespace VulkanCube
             VkApi.DestroyBuffer(this.Device, IndexBuffer, null);
             IndexAllocation.Dispose();
 
+            VkApi.DestroyBuffer(this.Device, InstanceBuffer, null);
+            InstanceAllocation.Dispose();
+
             Allocator.Dispose();
 
             base.Dispose();
@@ -70,38 +83,22 @@ namespace VulkanCube
                 throw new VulkanResultException("Unable to retrieve instance version", res);
             }
 
-            VulkanMemoryAllocatorCreateInfo createInfo = new VulkanMemoryAllocatorCreateInfo
-            {
-                VulkanAPIObject = VkApi,
-                Instance = this.Instance,
-                PhysicalDevice = this.PhysicalDevice,
-                LogicalDevice = this.Device,
-                PreferredLargeHeapBlockSize = 64L * 1024 * 1024,
-                VulkanAPIVersion = (Version32)version,
-                UseExtMemoryBudget = true
-            };
+            VulkanMemoryAllocatorCreateInfo createInfo = new VulkanMemoryAllocatorCreateInfo(
+                (Version32)version, VkApi, Instance, PhysicalDevice, Device,
+                preferredLargeHeapBlockSize: 64L * 1024 * 1024, frameInUseCount: DrawCubeExample.MaxFramesInFlight);
 
             return new VulkanMemoryAllocator(createInfo);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private (Buffer, Allocation) CreateBufferObject<T>(BufferUsageFlags usageFlags, ReadOnlySpan<T> data) where T: unmanaged
         {
-            uint graphicsFamily = this.QueueIndices.GraphicsFamily.Value;
+            BufferCreateInfo bufferInfo = new BufferCreateInfo(
+                usage: usageFlags | BufferUsageFlags.BufferUsageTransferDstBit,
+                size: (uint)sizeof(T) * (uint)data.Length
+            );
 
-            BufferCreateInfo bufferInfo = new BufferCreateInfo
-            {
-                SType = StructureType.BufferCreateInfo,
-                Usage = usageFlags | BufferUsageFlags.BufferUsageTransferDstBit,
-                Size = (uint)sizeof(T) * (uint)data.Length,
-                SharingMode = SharingMode.Exclusive,
-                QueueFamilyIndexCount = 1,
-                PQueueFamilyIndices = &graphicsFamily
-            };
-
-            AllocationCreateInfo allocInfo = new AllocationCreateInfo
-            {
-                Usage = MemoryUsage.GPU_Only
-            };
+            AllocationCreateInfo allocInfo = new AllocationCreateInfo(usage: MemoryUsage.GPU_Only);
 
             var buffer = this.Allocator.CreateBuffer(bufferInfo, allocInfo, out Allocation allocation);
 
@@ -111,7 +108,12 @@ namespace VulkanCube
 
             var hostBuffer = this.Allocator.CreateBuffer(bufferInfo, allocInfo, out Allocation hostAllocation);
 
-            data.CopyTo(new Span<T>((void*)hostAllocation.MappedData, data.Length));
+            if (!hostAllocation.TryGetSpan(out Span<T> span))
+            {
+                throw new InvalidOperationException("Unable to get span to mapped allocation.");
+            }
+
+            data.CopyTo(span);
 
             TransferBufferData(hostBuffer, buffer, new BufferCopy(0, 0, bufferInfo.Size));
 
@@ -123,9 +125,9 @@ namespace VulkanCube
 
         private void CreateVertexBuffer()
         {
-            Vertex[] data = VertexData.IndexedCubeData;
+            PositionColorVertex[] data = VertexData.IndexedCubeData;
 
-            (this.VertexBuffer, this.VertexAllocation) = this.CreateBufferObject<Vertex>(BufferUsageFlags.BufferUsageVertexBufferBit, data);
+            (this.VertexBuffer, this.VertexAllocation) = this.CreateBufferObject<PositionColorVertex>(BufferUsageFlags.BufferUsageVertexBufferBit, data);
 
             this.VertexCount = (uint)data.Length;
         }
@@ -137,6 +139,20 @@ namespace VulkanCube
             (this.IndexBuffer, this.IndexAllocation) = this.CreateBufferObject<ushort>(BufferUsageFlags.BufferUsageIndexBufferBit, data);
 
             this.IndexCount = (uint)data.Length;
+        }
+
+        private void CreateInstanceBuffer()
+        {
+            InstanceData[] data = new InstanceData[]
+            {
+                new InstanceData(new Vector3(0, 0, 0)),
+                new InstanceData(new Vector3(2, 0, 0)),
+                new InstanceData(new Vector3(-2, 0, 0))
+            };
+
+            (this.InstanceBuffer, this.InstanceAllocation) = this.CreateBufferObject<InstanceData>(BufferUsageFlags.BufferUsageVertexBufferBit, data);
+
+            this.InstanceCount = (uint)data.Length;
         }
 
         protected uint UniformBufferSize = (uint)sizeof(Matrix4x4) * 2;
@@ -288,7 +304,7 @@ namespace VulkanCube
             VkApi.WaitForFences(this.Device, 1, &fence, true, ulong.MaxValue); //Warning, this returns a Result Value
 
             VkApi.DestroyFence(this.Device, fence, null);
-            VkApi.FreeCommandBuffers(this.Device, this.CommandPool, 1, ref cBuffer);
+            VkApi.FreeCommandBuffers(this.Device, this.CommandPool, 1, &cBuffer);
         }
 
         protected struct DepthBufferObject

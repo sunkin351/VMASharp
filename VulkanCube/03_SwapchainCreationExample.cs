@@ -244,8 +244,8 @@ namespace VulkanCube
 
             var WinSize = this.DisplayWindow.Size;
 
-            var width = Math.Clamp((uint)WinSize.Width, capabilities.MinImageExtent.Width, capabilities.MaxImageExtent.Width);
-            var height = Math.Clamp((uint)WinSize.Height, capabilities.MinImageExtent.Height, capabilities.MaxImageExtent.Height);
+            var width = Math.Clamp((uint)WinSize.X, capabilities.MinImageExtent.Width, capabilities.MaxImageExtent.Width);
+            var height = Math.Clamp((uint)WinSize.Y, capabilities.MinImageExtent.Height, capabilities.MaxImageExtent.Height);
 
             return new Extent2D(width, height);
         }

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -15,11 +15,11 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="Silk.NET.GLFW" Version="1.4.0" />
-    <PackageReference Include="Silk.NET.Vulkan" Version="1.4.0" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="1.4.0" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="1.4.0" />
-    <PackageReference Include="Silk.NET.Windowing" Version="1.4.0" />
+    <PackageReference Include="Silk.NET.GLFW" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Windowing" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>

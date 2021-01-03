@@ -7,6 +7,7 @@ using System.Diagnostics;
 
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
+using System.Buffers;
 
 #nullable enable
 
@@ -56,7 +57,7 @@ namespace VMASharp
         /// It can change after call to vmaDefragment() if this allocation is passed to the function, or if allocation is lost.
         /// If the allocation is lost, it is equal to `VK_NULL_HANDLE`.
         /// </summary>
-        public abstract DeviceMemory Memory { get; }
+        public abstract DeviceMemory DeviceMemory { get; }
 
         /// <summary>
         /// Offset into deviceMemory object to the beginning of this allocation, in bytes. (deviceMemory, offset) pair is unique to this allocation.
@@ -108,7 +109,7 @@ namespace VMASharp
         {
             Debug.Assert(this.Offset >= 0);
 
-            return this.Allocator.BindVulkanBuffer(buffer, this.Memory, this.Offset, null);
+            return this.Allocator.BindVulkanBuffer(buffer, this.DeviceMemory, this.Offset, null);
         }
 
         public unsafe Result BindBufferMemory(Buffer buffer, long allocationLocalOffset, IntPtr pNext)
@@ -123,12 +124,12 @@ namespace VMASharp
                 throw new ArgumentOutOfRangeException(nameof(allocationLocalOffset));
             }
 
-            return this.Allocator.BindVulkanBuffer(buffer, this.Memory, this.Offset + allocationLocalOffset, pNext);
+            return this.Allocator.BindVulkanBuffer(buffer, this.DeviceMemory, this.Offset + allocationLocalOffset, pNext);
         }
 
         public unsafe Result BindImageMemory(Image image)
         {
-            return this.Allocator.BindVulkanImage(image, this.Memory, this.Offset, null);
+            return this.Allocator.BindVulkanImage(image, this.DeviceMemory, this.Offset, null);
         }
 
         public unsafe Result BindImageMemory(Image image, long allocationLocalOffset, IntPtr pNext)
@@ -143,7 +144,7 @@ namespace VMASharp
                 throw new ArgumentOutOfRangeException(nameof(allocationLocalOffset));
             }
 
-            return this.Allocator.BindVulkanImage(image, this.Memory, this.Offset + allocationLocalOffset, pNext);
+            return this.Allocator.BindVulkanImage(image, this.DeviceMemory, this.Offset + allocationLocalOffset, pNext);
         }
 
         internal bool MakeLost(int currentFrame, int frameInUseCount)
@@ -248,5 +249,71 @@ namespace VMASharp
         public abstract IntPtr Map();
 
         public abstract void Unmap();
+
+        public bool TryGetMemory<T>(out Memory<T> memory) where T: unmanaged
+        {
+            if (mapCount != 0)
+            {
+                int size = checked((int)this.Size);
+
+                if (size >= sizeof(T))
+                {
+                    memory = new UnmanagedMemoryManager<T>((byte*)MappedData, size / sizeof(T)).Memory;
+
+                    return true;
+                }
+            }
+
+            memory = Memory<T>.Empty;
+            return false;
+        }
+
+        public bool TryGetSpan<T>(out Span<T> span) where T: unmanaged
+        {
+            if (mapCount != 0)
+            {
+                int size = checked((int)this.Size);
+
+                if (size >= sizeof(T))
+                {
+                    span = new Span<T>((void*)MappedData, size / sizeof(T));
+
+                    return true;
+                }
+            }
+
+            span = Span<T>.Empty;
+            return false;
+        }
+
+        private unsafe sealed class UnmanagedMemoryManager<T> : MemoryManager<T> where T: unmanaged
+        {
+            private readonly T* Pointer;
+            private readonly int ElementCount;
+
+            public UnmanagedMemoryManager(void* ptr, int elemCount)
+            {
+                Pointer = (T*)ptr;
+                ElementCount = elemCount;
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+            }
+
+            public override Span<T> GetSpan()
+            {
+                return new Span<T>(Pointer, ElementCount);
+            }
+
+            public override MemoryHandle Pin(int elementIndex = 0)
+            {
+                return new MemoryHandle(Pointer + elementIndex);
+            }
+
+            public override void Unpin()
+            {
+            }
+        }
     }
 }

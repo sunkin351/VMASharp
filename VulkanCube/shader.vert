@@ -9,13 +9,18 @@ layout(binding=0, set=0) uniform Uniforms
     layout(row_major) mat4 Model;
 };
 
+//Vertex Attributes
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 color;
+
+//Instance attributes
+layout(location = 2) in vec3 instancePosition;
+
 layout(location = 0) out vec3 fragColor;
 
 void main()
 {
-    gl_Position = vec4(position, 1) * Model;
+    gl_Position = vec4(position + instancePosition, 1) * Model;
 
     gl_Position = gl_Position * MVP;
 

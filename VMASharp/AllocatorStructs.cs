@@ -1,8 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
+using Silk.NET.Core;
 using Silk.NET.Vulkan;
+
+#pragma warning disable CA1815
 
 #nullable enable
 

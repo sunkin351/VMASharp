@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -13,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Vulkan" Version="1.0.1" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="1.0.1" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="1.0.1" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.0.0" />
   </ItemGroup>
 
 </Project>

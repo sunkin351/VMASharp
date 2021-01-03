@@ -25,7 +25,7 @@ namespace VulkanCube
 
         private Pipeline CreateGraphicsPipeline()
         {
-            var pName = SilkMarshal.MarshalStringToPtr("main");
+            using var pName = SilkMarshal.StringToMemory("main");
 
             var shaderStages = stackalloc PipelineShaderStageCreateInfo[2]
             {
@@ -55,18 +55,26 @@ namespace VulkanCube
                 PDynamicStates = dynamicStates
             };
 
-            var vertexBindingDescription = Vertex.BindingDescription;
+            var vertexBindings = stackalloc VertexInputBindingDescription[2]
+            {
+                new VertexInputBindingDescription(0, (uint)sizeof(PositionColorVertex), VertexInputRate.Vertex),
+                new VertexInputBindingDescription(1, (uint)sizeof(InstanceData), VertexInputRate.Instance)
+            };
 
-            var vertInputAttribs = stackalloc VertexInputAttributeDescription[2];
-            Vertex.AttributeDescriptions.CopyTo(new Span<VertexInputAttributeDescription>(vertInputAttribs, 2));
+            var vertexAttributes = stackalloc VertexInputAttributeDescription[3]
+            {
+                new VertexInputAttributeDescription(0, 0, Format.R32G32B32Sfloat, 0),
+                new VertexInputAttributeDescription(1, 0, Format.R32G32B32Sfloat, (uint)sizeof(System.Numerics.Vector3)),
+                new VertexInputAttributeDescription(2, 1, Format.R32G32B32Sfloat, 0)
+            };
 
             var vertexInputInfo = new PipelineVertexInputStateCreateInfo
             {
                 SType = StructureType.PipelineVertexInputStateCreateInfo,
-                VertexBindingDescriptionCount = 1,
-                PVertexBindingDescriptions = &vertexBindingDescription,
-                VertexAttributeDescriptionCount = 2,
-                PVertexAttributeDescriptions = vertInputAttribs
+                VertexBindingDescriptionCount = 2,
+                PVertexBindingDescriptions = vertexBindings,
+                VertexAttributeDescriptionCount = 3,
+                PVertexAttributeDescriptions = vertexAttributes
             };
 
             var inputAssembly = new PipelineInputAssemblyStateCreateInfo
@@ -176,8 +184,6 @@ namespace VulkanCube
             {
                 throw new VMASharp.VulkanResultException("Failed to create Graphics Pipeline!", res);
             }
-
-            SilkMarshal.FreeStringPtr(pName);
 
             return pipeline;
         }

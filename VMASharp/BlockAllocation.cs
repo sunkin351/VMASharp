@@ -18,7 +18,7 @@ namespace VMASharp
         {
         }
 
-        public override DeviceMemory Memory
+        public override DeviceMemory DeviceMemory
         {
             get => this.Block.DeviceMemory;
         }

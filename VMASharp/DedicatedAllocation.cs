@@ -19,7 +19,7 @@ namespace VMASharp
             this.memoryTypeIndex = memTypeIndex;
         }
 
-        public override DeviceMemory Memory => this.memory;
+        public override DeviceMemory DeviceMemory => this.memory;
 
         public override long Offset { get => 0; internal set => throw new InvalidOperationException(); }
 

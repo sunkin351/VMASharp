@@ -92,7 +92,7 @@ namespace VulkanCube
 
             PhysicalDeviceFeatures features = default;
 
-            var extensionNames = SilkMarshal.MarshalStringArrayToPtr(RequiredDeviceExtensions);
+            using var extensionNames = SilkMarshal.StringArrayToMemory(RequiredDeviceExtensions);
 
             PhysicalDeviceSeparateDepthStencilLayoutsFeatures depthStencilFeature = new PhysicalDeviceSeparateDepthStencilLayoutsFeatures
             {
@@ -113,8 +113,6 @@ namespace VulkanCube
 
             Device device;
             var res = VkApi.CreateDevice(this.PhysicalDevice, &createInfo, null, &device);
-
-            SilkMarshal.FreeStringArrayPtr(extensionNames, RequiredDeviceExtensions.Length);
 
             if (res != Result.Success)
             {
@@ -218,7 +216,7 @@ namespace VulkanCube
 
             for (uint i = 0; i < count; ++i)
             {
-                string name = SilkMarshal.MarshalPtrToString((IntPtr)pExtensions[i].ExtensionName);
+                string name = SilkMarshal.PtrToString((nint)pExtensions[i].ExtensionName);
 
                 extensions.Add(name);
             }

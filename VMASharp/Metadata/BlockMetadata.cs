@@ -1,10 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Diagnostics;
-
-using Silk.NET.Vulkan;
-using VMASharp;
 
 namespace VMASharp.Metadata
 {

@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 
-using Silk.NET.Windowing.Common;
+using Silk.NET.Windowing;
 using Silk.NET.Vulkan;
 
 namespace VulkanCube
 {
     public sealed unsafe class DrawCubeExample : GraphicsPipelineExample
     {
-        const int MaxFramesInFlight = 2;
+        public const int MaxFramesInFlight = 2;
 
         private CommandBuffer[] SecondaryCommandBuffers;
 
@@ -63,7 +63,7 @@ namespace VulkanCube
             ref var ctx = ref this.FrameContexts[this.CurrentFrame];
 
             //Wait for a previous render operation to finish
-            VkApi.WaitForFences(this.Device, 1, ref ctx.Fence, true, ulong.MaxValue);
+            VkApi.WaitForFences(this.Device, 1, in ctx.Fence, true, ulong.MaxValue);
 
             //Acquire the next image index to render to, synchronize when its available
             uint nextImage = 0;
@@ -102,7 +102,7 @@ namespace VulkanCube
             };
 
             //Reset Fence to unsignaled
-            VkApi.ResetFences(Device, 1, ref ctx.Fence);
+            VkApi.ResetFences(Device, 1, in ctx.Fence);
 
             //Submit to Graphics queue
             res = VkApi.QueueSubmit(GraphicsQueue, 1, &submitInfo, ctx.Fence);
@@ -128,6 +128,7 @@ namespace VulkanCube
             }
 
             this.CurrentFrame = (this.CurrentFrame + 1) % MaxFramesInFlight;
+            this.Allocator.CurrentFrameIndex = CurrentFrame;
         }
 
         private void RecordSecondaryCommandBuffers()
@@ -196,9 +197,14 @@ namespace VulkanCube
             ulong offset = 0;
 
             VkApi.CmdBindVertexBuffers(DrawCommandBuffer, 0, 1, &vertexBuffer, &offset);
+
+            vertexBuffer = this.InstanceBuffer;
+
+            VkApi.CmdBindVertexBuffers(DrawCommandBuffer, 1, 1, &vertexBuffer, &offset);
+
             VkApi.CmdBindIndexBuffer(DrawCommandBuffer, this.IndexBuffer, 0, IndexType.Uint16);
 
-            VkApi.CmdDrawIndexed(DrawCommandBuffer, this.IndexCount, 1, 0, 0, 0);
+            VkApi.CmdDrawIndexed(DrawCommandBuffer, this.IndexCount, this.InstanceCount, 0, 0, 0);
             EndCommandBuffer(DrawCommandBuffer);
         }
 

@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 using Silk.NET.Windowing;
-using Silk.NET.Windowing.Common;
+using Silk.NET.Core;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Vulkan.Extensions.EXT;
@@ -13,7 +14,7 @@ namespace VulkanCube
 {
     public unsafe abstract class InstanceCreationExample : ExampleBase
     {
-        protected static Vk VkApi;
+        protected static readonly Vk VkApi;
 
         static InstanceCreationExample()
         {
@@ -45,7 +46,8 @@ namespace VulkanCube
 
             options.Title = "Hello Cube";
             options.FramesPerSecond = 60;
-            options.UseSingleThreadedWindow = true;
+
+            Window.PrioritizeGlfw();
 
             var window = Window.Create(options);
 
@@ -59,33 +61,10 @@ namespace VulkanCube
 
         private Instance CreateInstance()
         {
-            SetupAppInfo(out var appInfo);
+            using var appName = SilkMarshal.StringToMemory("Hello Cube");
+            using var engineName = SilkMarshal.StringToMemory("Custom Engine");
 
-            string[] extensions = GetWindowExtensions();
-            string[] layers = new string[] { "VK_LAYER_KHRONOS_validation" };
-
-            SetupInstanceInfo(&appInfo, extensions, layers, out var instInfo);
-
-            Instance inst;
-            var res = VkApi.CreateInstance(&instInfo, null, &inst);
-
-            CleanupInstanceInfo(instInfo);
-            CleanupAppInfo(appInfo);
-
-            if (res != Result.Success)
-            {
-                throw new VMASharp.VulkanResultException("Instance Creation Failed", res);
-            }
-
-            return inst;
-        }
-
-        private static void SetupAppInfo(out ApplicationInfo appInfo)
-        {
-            IntPtr appName = Marshal.StringToHGlobalAnsi("Hello Cube");
-            IntPtr engineName = Marshal.StringToHGlobalAnsi("Custom Engine");
-
-            appInfo = new ApplicationInfo
+            var appInfo = new ApplicationInfo
             (
                 pApplicationName: (byte*)appName,
                 applicationVersion: new Version32(0, 0, 1),
@@ -93,42 +72,32 @@ namespace VulkanCube
                 engineVersion: new Version32(0, 0, 1),
                 apiVersion: Vk.Version11
             );
-        }
 
-        private static void SetupInstanceInfo(ApplicationInfo* appInfo, IReadOnlyList<string> extensions, string[] layers, out InstanceCreateInfo createInfo)
-        {
-            IntPtr extPtr = default, layerPtr = default;
-            uint extCount = 0, layerCount = 0;
-
-            if (extensions != null && extensions.Count > 0)
+            List<string> extensions = new List<string>(GetWindowExtensions())
             {
-                extPtr = SilkMarshal.MarshalStringArrayToPtr(extensions);
-                extCount = (uint)extensions.Count;
-            }
-            
-            if (layers != null && layers.Length > 0)
+                Debugging.DebugExtensionString
+            };
+
+            string[] layers = new string[] { "VK_LAYER_KHRONOS_validation" };
+
+            using var extList = SilkMarshal.StringArrayToMemory(extensions);
+            using var layerList = SilkMarshal.StringArrayToMemory(layers);
+
+            var instInfo = new InstanceCreateInfo(pApplicationInfo: &appInfo,
+                                                enabledLayerCount: (uint)layers.Length,
+                                                ppEnabledLayerNames: (byte**)layerList,
+                                                enabledExtensionCount: (uint)extensions.Count,
+                                                ppEnabledExtensionNames: (byte**)extList);
+
+            Instance inst;
+            var res = VkApi.CreateInstance(&instInfo, null, &inst);
+
+            if (res != Result.Success)
             {
-                layerPtr = SilkMarshal.MarshalStringArrayToPtr(layers);
-                layerCount = (uint)layers.Length;
+                throw new VMASharp.VulkanResultException("Instance Creation Failed", res);
             }
 
-            createInfo = new InstanceCreateInfo(pApplicationInfo: appInfo,
-                                                enabledLayerCount: layerCount,
-                                                ppEnabledLayerNames: (byte**)layerPtr,
-                                                enabledExtensionCount: extCount,
-                                                ppEnabledExtensionNames: (byte**)extPtr);
-        }
-
-        private static void CleanupAppInfo(in ApplicationInfo appInfo)
-        {
-            Marshal.FreeHGlobal((IntPtr)appInfo.PApplicationName);
-            Marshal.FreeHGlobal((IntPtr)appInfo.PEngineName);
-        }
-
-        private static void CleanupInstanceInfo(in InstanceCreateInfo createInfo)
-        {
-            SilkMarshal.FreeStringArrayPtr((IntPtr)createInfo.PpEnabledLayerNames, (int)createInfo.EnabledLayerCount);
-            SilkMarshal.FreeStringArrayPtr((IntPtr)createInfo.PpEnabledExtensionNames, (int)createInfo.EnabledExtensionCount);
+            return inst;
         }
 
         public override void Dispose()
