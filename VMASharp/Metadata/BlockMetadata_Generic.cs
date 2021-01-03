@@ -19,9 +19,9 @@ namespace VMASharp.Metadata
 
         private readonly List<LinkedListNode<Suballocation>> freeSuballocationsBySize = new List<LinkedListNode<Suballocation>>();
 
-        public override int AllocationCount => throw new NotImplementedException();
+        public override int AllocationCount => suballocations.Count - freeCount;
 
-        public override long SumFreeSize => throw new NotImplementedException();
+        public override long SumFreeSize => sumFreeSize;
 
         public override long UnusedRangeSizeMax
         {
