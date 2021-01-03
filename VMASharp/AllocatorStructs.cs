@@ -106,7 +106,7 @@ namespace VMASharp
 
         public int FrameInUseCount;
 
-        public Func<long, Metadata.BlockMetadata>? AllocationAlgorithmCreate;
+        public Func<long, Metadata.IBlockMetadata>? AllocationAlgorithmCreate;
 
         public AllocationPoolCreateInfo(int memoryTypeIndex,
                                         PoolCreateFlags flags = 0,
@@ -114,7 +114,7 @@ namespace VMASharp
                                         int minBlockCount = 0,
                                         int maxBlockCount = 0,
                                         int frameInUseCount = 0,
-                                        Func<long, Metadata.BlockMetadata>? allocationAlgorithemCreate = null)
+                                        Func<long, Metadata.IBlockMetadata>? allocationAlgorithemCreate = null)
         {
             MemoryTypeIndex = memoryTypeIndex;
             Flags = flags;

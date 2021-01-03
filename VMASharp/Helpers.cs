@@ -28,7 +28,7 @@ namespace VMASharp
         public static readonly Comparison<LinkedListNode<Suballocation>> SuballocationNodeItemSizeLess = (first, second) => first.Value.Size.CompareTo(second.Value.Size);
         public static readonly Comparison<Suballocation> SuballocationItemSizeLess = (first, second) => first.Size.CompareTo(second.Size);
 
-        public static readonly Func<long, Metadata.BlockMetadata> DefaultMetaObjectCreate = size => new Metadata.BlockMetadata_Generic(size);
+        public static readonly Func<long, Metadata.IBlockMetadata> DefaultMetaObjectCreate = size => new Metadata.BlockMetadata_Generic(size);
 
         public static bool IsPow2(int v)
         {

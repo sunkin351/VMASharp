@@ -22,14 +22,14 @@ namespace VMASharp
         private readonly int minBlockCount, maxBlockCount;
         private readonly bool explicitBlockSize;
 
-        private readonly Func<long, BlockMetadata> metaObjectCreate;
+        private readonly Func<long, IBlockMetadata> metaObjectCreate;
 
         private bool hasEmptyBlock;
         private uint nextBlockID;
 
         public BlockList(VulkanMemoryAllocator allocator, VulkanMemoryPool? pool, int memoryTypeIndex,
             long preferredBlockSize, int minBlockCount, int maxBlockCount, long bufferImageGranularity,
-            int frameInUseCount, bool explicitBlockSize, Func<long, BlockMetadata> algorithm)
+            int frameInUseCount, bool explicitBlockSize, Func<long, IBlockMetadata> algorithm)
         {
             this.Allocator = allocator;
             this.ParentPool = pool;
@@ -176,7 +176,9 @@ namespace VMASharp
 
             try
             {
-                VulkanMemoryBlock block = ((BlockAllocation)allocation).Block;
+                var blockAlloc = (BlockAllocation)allocation;
+
+                VulkanMemoryBlock block = blockAlloc.Block;
 
                 //Corruption Detection TODO
 
@@ -185,7 +187,7 @@ namespace VMASharp
                     block.Unmap(1);
                 }
 
-                block.MetaData.Free(allocation);
+                block.MetaData.Free(blockAlloc);
 
                 block.Validate();
 

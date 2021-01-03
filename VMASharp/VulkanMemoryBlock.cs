@@ -18,12 +18,12 @@ namespace VMASharp
         private Vk VkApi => Allocator.VkApi;
 
         private readonly VulkanMemoryAllocator Allocator;
-        public readonly BlockMetadata MetaData;
+        public readonly IBlockMetadata MetaData;
         private readonly object SyncLock = new object();
         private int mapCount;
 
 
-        public VulkanMemoryBlock(VulkanMemoryAllocator allocator, VulkanMemoryPool? pool, int memoryTypeIndex, DeviceMemory memory, uint id, BlockMetadata metaObject)
+        public VulkanMemoryBlock(VulkanMemoryAllocator allocator, VulkanMemoryPool? pool, int memoryTypeIndex, DeviceMemory memory, uint id, IBlockMetadata metaObject)
         {
             Allocator = allocator;
             ParentPool = pool;
@@ -70,7 +70,7 @@ namespace VMASharp
 
             try
             {
-                this.MetaData.CheckCorruption(data);
+                this.MetaData.CheckCorruption((nuint)(nint)data);
             }
             finally
             {

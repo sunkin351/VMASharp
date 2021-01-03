@@ -2,15 +2,15 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Silk.NET.Vulkan;
-using VMASharp;
 
 #nullable enable
 
 namespace VMASharp.Metadata
 {
-    internal sealed class BlockMetadata_Generic : BlockMetadata
+    internal sealed class BlockMetadata_Generic : IBlockMetadata
     {
+        public long Size { get; }
+
         private int freeCount;
 
         private long sumFreeSize;
@@ -19,11 +19,11 @@ namespace VMASharp.Metadata
 
         private readonly List<LinkedListNode<Suballocation>> freeSuballocationsBySize = new List<LinkedListNode<Suballocation>>();
 
-        public override int AllocationCount => suballocations.Count - freeCount;
+        public int AllocationCount => suballocations.Count - freeCount;
 
-        public override long SumFreeSize => sumFreeSize;
+        public long SumFreeSize => sumFreeSize;
 
-        public override long UnusedRangeSizeMax
+        public long UnusedRangeSizeMax
         {
             get
             {
@@ -38,10 +38,11 @@ namespace VMASharp.Metadata
             }
         }
 
-        public override bool IsEmpty => (this.suballocations.Count == 1) && (this.freeCount == 1);
+        public bool IsEmpty => (this.suballocations.Count == 1) && (this.freeCount == 1);
 
-        public BlockMetadata_Generic(long blockSize) : base(blockSize)
+        public BlockMetadata_Generic(long blockSize)
         {
+            this.Size = blockSize;
             this.freeCount = 1;
             this.sumFreeSize = blockSize;
 
@@ -59,7 +60,7 @@ namespace VMASharp.Metadata
             this.freeSuballocationsBySize.Add(node);
         }
 
-        public override void Alloc(in AllocationRequest request, SuballocationType type, long allocSize, BlockAllocation allocation)
+        public void Alloc(in AllocationRequest request, SuballocationType type, long allocSize, BlockAllocation allocation)
         {
             Debug.Assert(request.Type == AllocationRequestType.Normal);
             Debug.Assert(request.Item != null);
@@ -130,12 +131,12 @@ namespace VMASharp.Metadata
             this.sumFreeSize -= allocSize;
         }
 
-        public override void CheckCorruption(IntPtr blockData)
+        public void CheckCorruption(nuint blockDataPointer)
         {
             throw new NotImplementedException();
         }
 
-        public override bool TryCreateAllocationRequest(in AllocationContext context, out AllocationRequest request)
+        public bool TryCreateAllocationRequest(in AllocationContext context, out AllocationRequest request)
         {
             request = default;
 
@@ -226,7 +227,7 @@ namespace VMASharp.Metadata
             return false;
         }
 
-        public override void Free(Allocation allocation)
+        public void Free(BlockAllocation allocation)
         {
             for (LinkedListNode<Suballocation>? node = this.suballocations.First; node != null; node = node.Next)
             {
@@ -242,7 +243,7 @@ namespace VMASharp.Metadata
             throw new InvalidOperationException("Allocation not found!");
         }
 
-        public override void FreeAtOffset(long offset)
+        public void FreeAtOffset(long offset)
         {
             for (LinkedListNode<Suballocation>? node = this.suballocations.First; node != null; node = node.Next)
             {
@@ -258,7 +259,7 @@ namespace VMASharp.Metadata
             throw new InvalidOperationException("Allocation not found!");
         }
 
-        public override int MakeAllocationsLost(int currentFrame, int frameInUseCount)
+        public int MakeAllocationsLost(int currentFrame, int frameInUseCount)
         {
             int lost = 0;
 
@@ -277,7 +278,7 @@ namespace VMASharp.Metadata
             return lost;
         }
 
-        public override bool MakeRequestedAllocationsLost(int currentFrame, int frameInUseCount, ref AllocationRequest request)
+        public bool MakeRequestedAllocationsLost(int currentFrame, int frameInUseCount, ref AllocationRequest request)
         {
             if (request.Type != AllocationRequestType.Normal)
             {
@@ -314,7 +315,7 @@ namespace VMASharp.Metadata
             return true;
         }
 
-        public override void Validate()
+        public void Validate()
         {
             Helpers.Validate(this.suballocations.Count > 0);
 
@@ -714,7 +715,7 @@ namespace VMASharp.Metadata
             }
         }
 
-        public override void CalcAllocationStatInfo(out StatInfo outInfo)
+        public void CalcAllocationStatInfo(out StatInfo outInfo)
         {
             outInfo = default;
 
@@ -753,7 +754,7 @@ namespace VMASharp.Metadata
             }
         }
 
-        public override void AddPoolStats(ref PoolStats stats)
+        public void AddPoolStats(ref PoolStats stats)
         {
             int rangeCount = this.suballocations.Count;
 
