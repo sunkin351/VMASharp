@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
@@ -173,7 +173,7 @@ namespace VMASharp
             return ~begin;
         }
 
-        public static int BinarySearch_Leftmost<T>(this List<T> list, Func<T, int> searchCompare)
+        public static int BinarySearch_Leftmost<T, TComp>(this List<T> list, TComp comp) where TComp : struct, IComparer_Single<T>
         {
             int begin = 0, end = list.Count, comparison = -1;
 
@@ -181,7 +181,7 @@ namespace VMASharp
             {
                 int mid = (begin + end) / 2;
 
-                comparison = searchCompare(list[mid]);
+                comparison = comp.Compare(list[mid]);
 
                 if (comparison < 0)
                 {
@@ -245,6 +245,19 @@ namespace VMASharp
             list.Insert(i, value);
 
             return i;
+        }
+
+        public static int FindIndex<T, TState>(this List<T> list, TState state, Func<T, TState, bool> predicate)
+        {
+            for (int i = 0; i < list.Count; ++i)
+            {
+                if (predicate(list[i], state))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         [Conditional("DEBUG")]

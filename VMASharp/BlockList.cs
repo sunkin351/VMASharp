@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
@@ -600,7 +600,7 @@ namespace VMASharp
             throw new AllocationException("Unable to allocate memory");
         }
 
-        private Allocation? AllocateFromBlock(VulkanMemoryBlock block, in AllocationContext context, AllocationCreateFlags flags, object userData)
+        private Allocation? AllocateFromBlock(VulkanMemoryBlock block, in AllocationContext context, AllocationCreateFlags flags, object? userData)
         {
             Debug.Assert((flags & AllocationCreateFlags.CanMakeOtherLost) == 0);
             bool mapped = (flags & AllocationCreateFlags.Mapped) != 0;
