@@ -11,8 +11,6 @@ using System.Numerics;
 
 using Buffer = Silk.NET.Vulkan.Buffer;
 
-#nullable enable
-
 namespace VMASharp
 {
     using Defragmentation;

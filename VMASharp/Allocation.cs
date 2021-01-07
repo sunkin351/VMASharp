@@ -9,8 +9,6 @@ using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 using System.Buffers;
 
-#nullable enable
-
 namespace VMASharp
 {
     /// <summary>

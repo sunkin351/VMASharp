@@ -52,7 +52,7 @@ namespace VMASharp.Defragmentation
 
         }
 
-        private void InsertSuballoc(BlockMetadata_Generic metadata, Suballocation suballoc)
+        private void InsertSuballoc(BlockMetadata_Generic metadata, in Suballocation suballoc)
         {
 
         }

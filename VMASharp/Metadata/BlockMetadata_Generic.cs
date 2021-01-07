@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-#nullable enable
-
 namespace VMASharp.Metadata
 {
     internal sealed class BlockMetadata_Generic : IBlockMetadata

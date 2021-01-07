@@ -4,8 +4,6 @@ using Silk.NET.Vulkan;
 
 #pragma warning disable CA1815
 
-#nullable enable
-
 namespace VMASharp
 {
     public struct VulkanMemoryAllocatorCreateInfo

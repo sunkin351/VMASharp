@@ -4,8 +4,6 @@ using System.Text;
 
 using Silk.NET.Vulkan;
 
-#nullable enable
-
 namespace VMASharp.Defragmentation
 {
     internal class BlockListDefragmentationContext

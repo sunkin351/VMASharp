@@ -1,12 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
 using System.Linq;
 
 using Silk.NET.Vulkan;
-
-#nullable enable
 
 namespace VMASharp
 {
