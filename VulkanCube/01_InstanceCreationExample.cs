@@ -14,7 +14,7 @@ namespace VulkanCube
 {
     public unsafe abstract class InstanceCreationExample : ExampleBase
     {
-        protected static readonly Vk VkApi;
+        internal static readonly Vk VkApi;
 
         static InstanceCreationExample()
         {
