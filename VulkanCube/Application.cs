@@ -16,14 +16,12 @@ namespace VulkanCube
 
                 app.Dispose();
             }
-            catch (VMASharp.VulkanResultException e)
-            {
-                Console.WriteLine(e);
-                Console.WriteLine("\nResult Code: " + e.Result);
-            }
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                
+                if (e is VMASharp.VulkanResultException ve)
+                    Console.WriteLine("\nResult Code: " + ve.Result);
             }
         }
 
