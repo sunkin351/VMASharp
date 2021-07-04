@@ -51,10 +51,10 @@ namespace VulkanCube
 
             var window = Window.Create(options);
 
+            window.Initialize();
+
             if (window.VkSurface == null)
                 throw new NotSupportedException("Vulkan is not supported.");
-
-            window.Initialize();
 
             return window;
         }
