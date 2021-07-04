@@ -41,6 +41,8 @@ namespace VulkanCube
 
         private WaitScheduler scheduler;
 
+        protected Task BufferCopyPromise;
+
         protected AllocatorAndBuffersExample() : base()
         {
             scheduler = new WaitScheduler(Device);
@@ -96,45 +98,7 @@ namespace VulkanCube
             return new VulkanMemoryAllocator(createInfo);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private async Task<(Buffer, Allocation)> CreateBufferObject<T>(BufferUsageFlags usageFlags, ReadOnlyMemory<T> data) where T: unmanaged
-        {
-            BufferCreateInfo bufferInfo = new();
-            bufferInfo.SType = StructureType.BufferCreateInfo;
-            bufferInfo.Usage = usageFlags | BufferUsageFlags.BufferUsageTransferDstBit;
-            bufferInfo.Size = (uint)Unsafe.SizeOf<T>() * (uint)data.Length;
-
-            AllocationCreateInfo allocInfo = new(usage: MemoryUsage.GPU_Only);
-
-            var buffer = this.Allocator.CreateBuffer(in bufferInfo, in allocInfo, out Allocation allocation);
-
-            bufferInfo.Usage = BufferUsageFlags.BufferUsageTransferSrcBit;
-            allocInfo.Usage = MemoryUsage.CPU_Only;
-            allocInfo.Flags = AllocationCreateFlags.Mapped;
-
-            var hostBuffer = this.Allocator.CreateBuffer(in bufferInfo, in allocInfo, out Allocation hostAllocation);
-
-            if (!hostAllocation.TryGetMemory(out Memory<T> span))
-            {
-                throw new InvalidOperationException("Unable to get Memory<T> to mapped allocation.");
-            }
-
-            data.CopyTo(span);
-
-            await TransferBufferData(hostBuffer, buffer, new BufferCopy(0, 0, bufferInfo.Size));
-
-            DestroyBuffer(hostBuffer, hostAllocation);
-
-            return (buffer, allocation);
-
-            unsafe void DestroyBuffer(Buffer buffer, Allocation alloc)
-            {
-                VkApi.DestroyBuffer(this.Device, buffer, null);
-                alloc.Dispose();
-            }
-        }
-
-        private void CreateBuffers()
+        private unsafe void CreateBuffers()
         {
             PositionColorVertex[] positionData = VertexData.IndexedCubeData;
 
@@ -147,25 +111,96 @@ namespace VulkanCube
                 new InstanceData(new Vector3(-2, 0, 0))
             };
 
-            Task<(Buffer, Allocation)> task1, task2, task3;
+            CreateHostBufferWithContent<PositionColorVertex>(positionData, out var hostBuffer1, out var hostAlloc1);
+            CreateHostBufferWithContent<ushort>(indexData, out var hostBuffer2, out var hostAlloc2);
+            CreateHostBufferWithContent<InstanceData>(instanceData, out var hostBuffer3, out var hostAlloc3);
 
-            task1 = this.CreateBufferObject<PositionColorVertex>(BufferUsageFlags.BufferUsageVertexBufferBit, positionData);
-            task2 = this.CreateBufferObject<ushort>(BufferUsageFlags.BufferUsageIndexBufferBit, indexData);
-            task3 = this.CreateBufferObject<InstanceData>(BufferUsageFlags.BufferUsageVertexBufferBit, instanceData);
+            CreateDeviceLocalBuffer(BufferUsageFlags.BufferUsageVertexBufferBit, GetByteLength(positionData), out this.VertexBuffer, out this.VertexAllocation);
+            CreateDeviceLocalBuffer(BufferUsageFlags.BufferUsageIndexBufferBit, GetByteLength(indexData), out this.IndexBuffer, out this.IndexAllocation);
+            CreateDeviceLocalBuffer(BufferUsageFlags.BufferUsageVertexBufferBit, GetByteLength(instanceData), out this.InstanceBuffer, out this.InstanceAllocation);
 
-            Task.WaitAll(task1, task2, task3);
+            var cbuffer = AllocateCommandBuffer(CommandBufferLevel.Primary);
 
-            (this.VertexBuffer, this.VertexAllocation) = task1.Result;
+            BufferCopy* copies = stackalloc BufferCopy[1];
 
-            this.VertexCount = (uint)positionData.Length;
+            BeginCommandBuffer(cbuffer, CommandBufferUsageFlags.CommandBufferUsageOneTimeSubmitBit);
 
-            (this.IndexBuffer, this.IndexAllocation) = task2.Result;
+            copies[0] = new BufferCopy(0, 0, (ulong)GetByteLength(positionData));
+            VkApi.CmdCopyBuffer(cbuffer, hostBuffer1, this.VertexBuffer, 1, copies);
 
-            this.IndexCount = (uint)indexData.Length;
+            copies[0] = new BufferCopy(0, 0, (ulong)GetByteLength(indexData));
+            VkApi.CmdCopyBuffer(cbuffer, hostBuffer2, this.IndexBuffer, 1, copies);
 
-            (this.InstanceBuffer, this.InstanceAllocation) = task3.Result;
+            copies[0] = new BufferCopy(0, 0, (ulong)GetByteLength(instanceData));
+            VkApi.CmdCopyBuffer(cbuffer, hostBuffer3, this.InstanceBuffer, 1, copies);
 
-            this.InstanceCount = (uint)instanceData.Length;
+            EndCommandBuffer(cbuffer);
+
+            var subInfo = new SubmitInfo(commandBufferCount: 1, pCommandBuffers: &cbuffer);
+
+            var fence = CreateFence();
+
+            var res = VkApi.QueueSubmit(GraphicsQueue, 1, &subInfo, fence);
+
+            if (res != Result.Success)
+                throw new Exception("Unable to submit to queue. " + res);
+
+            var bufferTmp = cbuffer; //Allows the capture of this command buffer in a lambda
+
+            BufferCopyPromise = this.scheduler.WaitForFenceAsync(fence);
+
+            BufferCopyPromise.GetAwaiter().OnCompleted(() =>
+            {
+                VkApi.DestroyFence(Device, fence, null);
+
+                FreeCommandBuffer(bufferTmp);
+
+                VkApi.DestroyBuffer(Device, hostBuffer1, null);
+                VkApi.DestroyBuffer(Device, hostBuffer2, null);
+                VkApi.DestroyBuffer(Device, hostBuffer3, null);
+
+                hostAlloc1.Dispose();
+                hostAlloc2.Dispose();
+                hostAlloc3.Dispose();
+            });
+
+            this.VertexCount    = (uint)positionData.Length;
+            this.IndexCount     = (uint)indexData.Length;
+            this.InstanceCount  = (uint)instanceData.Length;
+        }
+
+        static uint GetByteLength<T>(T[] arr) where T: unmanaged
+        {
+            return (uint)Unsafe.SizeOf<T>() * (uint)arr.Length;
+        }
+
+        private unsafe void CreateHostBufferWithContent<T>(ReadOnlySpan<T> span, out Buffer buffer, out Allocation alloc) where T : unmanaged
+        {
+            BufferCreateInfo bufferInfo = new(
+                usage: BufferUsageFlags.BufferUsageTransferSrcBit,
+                size: (uint)Unsafe.SizeOf<T>() * (uint)span.Length);
+
+            AllocationCreateInfo allocInfo = new(AllocationCreateFlags.Mapped, usage: MemoryUsage.CPU_Only);
+
+            buffer = Allocator.CreateBuffer(in bufferInfo, in allocInfo, out alloc);
+
+            if (!alloc.TryGetSpan(out Span<T> bufferSpan))
+            {
+                throw new InvalidOperationException("Unable to get Span<T> to mapped allocation.");
+            }
+
+            span.CopyTo(bufferSpan);
+        }
+
+        private unsafe void CreateDeviceLocalBuffer(BufferUsageFlags usage, uint size, out Buffer buffer, out Allocation alloc)
+        {
+            BufferCreateInfo bufferInfo = new(
+                usage: usage | BufferUsageFlags.BufferUsageTransferDstBit,
+                size: size);
+
+            AllocationCreateInfo allocInfo = new(usage: MemoryUsage.GPU_Only);
+
+            buffer = Allocator.CreateBuffer(in bufferInfo, in allocInfo, out alloc);
         }
 
         protected uint UniformBufferSize = (uint)Unsafe.SizeOf<Matrix4x4>() * 2;
@@ -181,11 +216,9 @@ namespace VulkanCube
             };
 
             // Allow this to be updated every frame
-            AllocationCreateInfo allocInfo = new AllocationCreateInfo
-            {
-                Usage = MemoryUsage.CPU_To_GPU,
-                RequiredFlags = MemoryPropertyFlags.MemoryPropertyHostVisibleBit
-            };
+            var allocInfo = new AllocationCreateInfo(
+                usage: MemoryUsage.CPU_To_GPU,
+                requiredFlags: MemoryPropertyFlags.MemoryPropertyHostVisibleBit);
 
             // Binds buffer to allocation for you
             var buffer = this.Allocator.CreateBuffer(in bufferInfo, in allocInfo, out var allocation);
@@ -238,10 +271,7 @@ namespace VulkanCube
                 ViewType = ImageViewType.ImageViewType2D
             };
 
-            AllocationCreateInfo allocInfo = new AllocationCreateInfo
-            {
-                Usage = MemoryUsage.GPU_Only
-            };
+            var allocInfo = new AllocationCreateInfo(usage: MemoryUsage.GPU_Only);
 
             var image = this.Allocator.CreateImage(depthInfo, allocInfo, out Allocation alloc);
 
@@ -275,39 +305,6 @@ namespace VulkanCube
             }
 
             return fence;
-        }
-
-        protected unsafe Task TransferBufferData(Buffer source, Buffer destination, BufferCopy copyRegion)
-        {
-            CommandBuffer cBuffer = AllocateCommandBuffer(CommandBufferLevel.Primary);
-
-            BeginCommandBuffer(cBuffer, CommandBufferUsageFlags.CommandBufferUsageOneTimeSubmitBit);
-
-            VkApi.CmdCopyBuffer(cBuffer, source, destination, 1, in copyRegion);
-
-            EndCommandBuffer(cBuffer);
-
-            var subInfo = new SubmitInfo(commandBufferCount: 1, pCommandBuffers: &cBuffer);
-
-            var fence = CreateFence();
-
-            var res = VkApi.QueueSubmit(GraphicsQueue, 1, &subInfo, fence);
-
-            if (res != Result.Success)
-                throw new Exception("Unable to submit to queue. " + res);
-
-            var bufferTmp = cBuffer; //Allows the capture of this command buffer in a lambda
-
-            var task = this.scheduler.WaitForFenceAsync(fence);
-
-            task.GetAwaiter().OnCompleted(() =>
-            {
-                FreeCommandBuffer(bufferTmp);
-
-                VkApi.DestroyFence(Device, fence, null);
-            });
-
-            return task;
         }
 
         protected struct DepthBufferObject

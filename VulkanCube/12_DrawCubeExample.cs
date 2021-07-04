@@ -21,6 +21,9 @@ namespace VulkanCube
             RecordSecondaryCommandBuffers();
 
             InitializeFrameContexts();
+
+            if (!this.BufferCopyPromise.IsCompleted)
+                this.BufferCopyPromise.Wait();
         }
 
         public override void Run()
