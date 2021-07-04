@@ -5,9 +5,6 @@ using System.Diagnostics;
 
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
-using VMASharp;
-
-#nullable enable
 
 namespace VMASharp
 {
@@ -18,7 +15,7 @@ namespace VMASharp
         private Vk VkApi => Allocator.VkApi;
 
         private readonly VulkanMemoryAllocator Allocator;
-        public readonly IBlockMetadata MetaData;
+        internal readonly IBlockMetadata MetaData;
         private readonly object SyncLock = new object();
         private int mapCount;
 
@@ -59,7 +56,7 @@ namespace VMASharp
         [Conditional("DEBUG")]
         public void Validate()
         {
-            Debug.Assert(this.DeviceMemory.Handle != default && this.MetaData.Size > 0);
+            Helpers.Validate(this.DeviceMemory.Handle != default && this.MetaData.Size > 0);
 
             MetaData.Validate();
         }

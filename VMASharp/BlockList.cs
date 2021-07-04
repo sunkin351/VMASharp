@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Linq;
 
 using Silk.NET.Vulkan;
@@ -324,7 +325,12 @@ namespace VMASharp
 
             for (int i = this.blocks.Count - 1; i >= 0; --i)
             {
-                result = Math.Max(result, this.blocks[i].MetaData.Size);
+                var blockSize = this.blocks[i].MetaData.Size;
+
+                if (result < blockSize)
+                {
+                    result = blockSize;
+                }
 
                 if (result >= this.PreferredBlockSize)
                 {
@@ -335,13 +341,11 @@ namespace VMASharp
             return result;
         }
 
+        [SkipLocalsInit]
         private Allocation AllocatePage(int currentFrame, long size, long alignment, in AllocationCreateInfo createInfo, SuballocationType suballocType)
         {
-            bool isUpperAddress = (createInfo.Flags & AllocationCreateFlags.UpperAddress) != 0;
             bool canMakeOtherLost = (createInfo.Flags & AllocationCreateFlags.CanMakeOtherLost) != 0;
             bool mapped = (createInfo.Flags & AllocationCreateFlags.Mapped) != 0;
-
-            bool withinBudget = (createInfo.Flags & AllocationCreateFlags.WithinBudget) != 0;
 
             long freeMemory;
 
@@ -386,15 +390,15 @@ namespace VMASharp
                 throw new AllocationException("Allocation size larger than block size", Result.ErrorOutOfDeviceMemory);
             }
 
-            AllocationContext context = new AllocationContext();
-            context.CurrentFrame = currentFrame;
-            context.FrameInUseCount = this.FrameInUseCount;
-            context.BufferImageGranularity = this.BufferImageGranularity;
-            context.AllocationSize = size;
-            context.AllocationAlignment = alignment;
-            context.Strategy = strategy;
-            context.SuballocationType = suballocType;
-            context.CanMakeOtherLost = canMakeOtherLost;
+            AllocationContext context = new AllocationContext(
+                currentFrame,
+                this.FrameInUseCount,
+                this.BufferImageGranularity,
+                size,
+                alignment,
+                strategy,
+                suballocType,
+                canMakeOtherLost);
 
             Allocation? alloc;
 
@@ -501,7 +505,9 @@ namespace VMASharp
                 for (; tryIndex < AllocationTryCount; ++tryIndex)
                 {
                     VulkanMemoryBlock? bestRequestBlock = null;
-                    AllocationRequest bestAllocRequest = new AllocationRequest();
+
+                    Unsafe.SkipInit(out AllocationRequest bestAllocRequest);
+
                     long bestRequestCost = long.MaxValue;
 
                     if (strategy == AllocationStrategyFlags.BestFit)

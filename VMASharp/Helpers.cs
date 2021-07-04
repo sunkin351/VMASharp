@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
@@ -109,7 +109,7 @@ namespace VMASharp
 
         public static long AlignUp(long value, long alignment)
         {
-            return (value + alignment - 1) / alignment * alignment;
+            return ((value + alignment - 1) / alignment) * alignment;
         }
 
         public static long AlignDown(long value, long alignment)
@@ -117,7 +117,17 @@ namespace VMASharp
             return (long)((ulong)value / (ulong)alignment * (ulong)alignment);
         }
 
-        public static int BinarySearch<T>(this List<T> list, Func<T, int> SearchCompare)
+        public interface IComparer_Single<T>
+        {
+            int Compare(T item);
+        }
+
+        public interface IComparer_Normal<T>
+        {
+            int Compare(T l, T r);
+        }
+
+        public static int BinarySearch<T, TComp>(this List<T> list, T value, TComp comp) where TComp : struct, IComparer_Normal<T>
         {
             int begin = 0, end = list.Count - 1;
 
@@ -125,7 +135,35 @@ namespace VMASharp
             {
                 int mid = (begin + end) / 2;
 
-                int comparison = SearchCompare(list[mid]);
+                int comparison = comp.Compare(list[mid], value);
+
+                if (comparison == 0)
+                {
+                    return mid;
+                }
+
+                if (comparison < 0)
+                {
+                    begin = mid + 1;
+                }
+                else
+                {
+                    end = mid - 1;
+                }
+            }
+
+            return ~begin;
+        }
+
+        public static int BinarySearch<T, TState>(this List<T> list, TState state, Func<T, TState, int> SearchCompare)
+        {
+            int begin = 0, end = list.Count - 1;
+
+            while (begin <= end)
+            {
+                int mid = (begin + end) / 2;
+
+                int comparison = SearchCompare(list[mid], state);
 
                 if (comparison == 0)
                 {
@@ -272,7 +310,7 @@ namespace VMASharp
             Debug.Assert(ptr != default);
         }
 
-        public static void Validate(bool assertion)
+        public static void Validate([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool assertion)
         {
             if (!assertion)
             {
