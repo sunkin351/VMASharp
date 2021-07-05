@@ -70,16 +70,17 @@ namespace VulkanCube
 
             //Acquire the next image index to render to, synchronize when its available
             uint nextImage = 0;
-            var res = this.VkSwapchain.AcquireNextImage(this.Device, this.Swapchain, ulong.MaxValue, ctx.ImageAvailable, default, ref nextImage);
+            var res = this.VkSwapchain.AcquireNextImage(this.Device, this.Swapchain, ulong.MaxValue, ctx.ImageAvailable, default, &nextImage);
 
-            if (res == Result.ErrorOutOfDateKhr)
+            switch (res)
             {
-                this.DisplayWindow.Close(); //Window surface changed size, handling that is outside the scope of this example
-                return;
-            }
-            else if (res != Result.Success)
-            {
-                throw new VMASharp.VulkanResultException("Failed to acquire next swapchain image!", res);
+                case Result.Success:
+                    break;
+                case Result.ErrorOutOfDateKhr: //Window surface changed size, handling that is outside the scope of this example
+                    this.DisplayWindow.Close(); 
+                    return;
+                default:
+                    throw new VMASharp.VulkanResultException("Failed to acquire next swapchain image!", res);
             }
 
             //Push semaphores, command buffer, and Pipeline Stage Flags to the stack to allow "fixed-less" addressing
@@ -92,17 +93,10 @@ namespace VulkanCube
             var buffer = this.RecordPrimaryCommandBuffer(ctx.CmdBuffer, (int)nextImage); //Records primary command buffer on the fly
 
             //Fill out queue submit info
-            SubmitInfo submitInfo = new SubmitInfo
-            {
-                SType = StructureType.SubmitInfo,
-                WaitSemaphoreCount = 1,
-                PWaitSemaphores = &waitSemaphore,
-                PWaitDstStageMask = &waitStages,
-                CommandBufferCount = 1,
-                PCommandBuffers = &buffer,
-                SignalSemaphoreCount = 1,
-                PSignalSemaphores = &signalSemaphore 
-            };
+            var submitInfo = new SubmitInfo(
+                waitSemaphoreCount: 1, pWaitSemaphores: &waitSemaphore, pWaitDstStageMask: &waitStages,
+                commandBufferCount: 1, pCommandBuffers: &buffer,
+                signalSemaphoreCount: 1, pSignalSemaphores: &signalSemaphore);
 
             //Reset Fence to unsignaled
             VkApi.ResetFences(Device, 1, in ctx.Fence);
@@ -114,18 +108,14 @@ namespace VulkanCube
                 throw new VMASharp.VulkanResultException("Failed to submit draw command buffer!", res);
             }
 
-            //
             fixed (SwapchainKHR* swapchain = &this.Swapchain)
             {
-                PresentInfoKHR presentInfo = new PresentInfoKHR
-                {
-                    SType = StructureType.PresentInfoKhr,
-                    WaitSemaphoreCount = 1,
-                    PWaitSemaphores = &signalSemaphore,
-                    SwapchainCount = 1,
-                    PSwapchains = swapchain,
-                    PImageIndices = &nextImage
-                };
+                var presentInfo = new PresentInfoKHR(
+                    waitSemaphoreCount: 1,
+                    pWaitSemaphores: &signalSemaphore,
+                    swapchainCount: 1,
+                    pSwapchains: swapchain,
+                    pImageIndices: &nextImage);
 
                 VkSwapchain.QueuePresent(PresentQueue, &presentInfo);
             }
@@ -170,13 +160,7 @@ namespace VulkanCube
 
             var scissor = new Rect2D(default, SwapchainExtent);
 
-            var inherit = new CommandBufferInheritanceInfo
-            {
-                SType = StructureType.CommandBufferInheritanceInfo,
-
-                RenderPass = this.RenderPass,
-                Subpass = 0
-            };
+            var inherit = new CommandBufferInheritanceInfo(renderPass: this.RenderPass, subpass: 0);
 
             const CommandBufferUsageFlags usageFlags = CommandBufferUsageFlags.CommandBufferUsageRenderPassContinueBit | CommandBufferUsageFlags.CommandBufferUsageSimultaneousUseBit;
 
@@ -213,22 +197,7 @@ namespace VulkanCube
 
         private void InitializeFrameContexts()
         {
-            var buffers = stackalloc CommandBuffer[MaxFramesInFlight];
-
-            var allocInfo = new CommandBufferAllocateInfo
-            {
-                SType = StructureType.CommandBufferAllocateInfo,
-                CommandPool = CommandPool,
-                Level = CommandBufferLevel.Primary,
-                CommandBufferCount = MaxFramesInFlight
-            };
-
-            var res = VkApi.AllocateCommandBuffers(this.Device, &allocInfo, buffers);
-
-            if (res != Result.Success)
-            {
-                throw new VMASharp.VulkanResultException("Failed to allocate command buffers!", res);
-            }
+            var buffers = AllocateCommandBuffers(MaxFramesInFlight, CommandBufferLevel.Primary);
 
             for (int i = 0; i < MaxFramesInFlight; ++i)
             {

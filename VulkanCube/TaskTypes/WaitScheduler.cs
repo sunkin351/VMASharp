@@ -66,14 +66,31 @@ namespace VulkanCube.TaskTypes
         private unsafe void ScheduleThreadMethod()
         {
             var list = new UnmanagedList<Fence>(64);
-            var taskList = new List<TaskCompletionSource>(64); 
+            var taskList = new List<TaskCompletionSource>(64);
+            Result res;
 
             while (_state == 0)
             {
                 while (_fenceQueue.TryDequeue(out var tuple))
                 {
-                    list.Add(tuple.Item1);
-                    taskList.Add(tuple.Item2);
+                    var (fence, tcs) = tuple;
+
+                    res = VkApi.GetFenceStatus(_device, fence);
+
+                    switch (res)
+                    {
+                        case Result.Success:
+                            tcs.SetResult();
+                            break;
+                        case Result.NotReady:
+                            list.Add(fence);
+                            taskList.Add(tcs);
+                            break;
+                        default:
+                            tcs.SetException(new Exception("VkGetFenceStatus() returned " + res));
+                            break;
+                    }
+
                 }
 
                 if (list.Count == 0)
@@ -82,7 +99,7 @@ namespace VulkanCube.TaskTypes
                     continue;
                 }
 
-                var res = VkApi.WaitForFences(_device, (uint)list.Count, list.BasePointer, false, 5 * 1_000_000);
+                res = VkApi.WaitForFences(_device, (uint)list.Count, list.BasePointer, false, 5 * 1_000_000);
 
                 switch (res)
                 {
