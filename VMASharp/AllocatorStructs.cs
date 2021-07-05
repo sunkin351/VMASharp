@@ -4,8 +4,6 @@ using Silk.NET.Vulkan;
 
 #pragma warning disable CA1815
 
-#nullable enable
-
 namespace VMASharp
 {
     public struct VulkanMemoryAllocatorCreateInfo
@@ -135,6 +133,18 @@ namespace VMASharp
         public AllocationStrategyFlags Strategy;
         public SuballocationType SuballocationType;
         public bool CanMakeOtherLost;
+
+        public AllocationContext(int currentFrame, int framesInUse, long bufferImageGranularity, long allocationSize, long allocationAlignment, AllocationStrategyFlags strategy, SuballocationType suballocType, bool canMakeOtherLost)
+        {
+            CurrentFrame = currentFrame;
+            FrameInUseCount = framesInUse;
+            BufferImageGranularity = bufferImageGranularity;
+            AllocationSize = allocationSize;
+            AllocationAlignment = allocationAlignment;
+            Strategy = strategy;
+            SuballocationType = suballocType;
+            CanMakeOtherLost = canMakeOtherLost;
+        }
     }
 
     public struct AllocationRequest
@@ -147,6 +157,7 @@ namespace VMASharp
         public object Item;
 
         public object CustomData;
+
         public AllocationRequestType Type;
         
         public readonly long CalcCost()

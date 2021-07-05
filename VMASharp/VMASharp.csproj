@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -13,9 +14,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Vulkan" Version="2.0.0" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.0.0" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.0.0" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="2.5.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.5.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.5.0" />
   </ItemGroup>
 
 </Project>

@@ -4,8 +4,6 @@ using System.Text;
 using Silk.NET.Vulkan;
 using VMASharp;
 
-#nullable enable
-
 namespace VMASharp.Defragmentation
 {
     public sealed class DefragmentationContext : IDisposable

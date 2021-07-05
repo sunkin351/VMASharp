@@ -92,12 +92,19 @@ namespace VMASharp
 
         public override IntPtr Map()
         {
-            throw new NotImplementedException();
+            var res = DedicatedAllocMap(out var pData);
+
+            if (res != Result.Success)
+            {
+                throw new MapMemoryException(res);
+            }
+
+            return pData;
         }
 
         public override void Unmap()
         {
-            throw new NotImplementedException();
+            DedicatedAllocUnmap();
         }
     }
 }

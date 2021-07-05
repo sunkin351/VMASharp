@@ -14,7 +14,7 @@ namespace VulkanCube
 {
     public unsafe abstract class InstanceCreationExample : ExampleBase
     {
-        protected static readonly Vk VkApi;
+        internal static readonly Vk VkApi;
 
         static InstanceCreationExample()
         {
@@ -51,10 +51,10 @@ namespace VulkanCube
 
             var window = Window.Create(options);
 
+            window.Initialize();
+
             if (window.VkSurface == null)
                 throw new NotSupportedException("Vulkan is not supported.");
-
-            window.Initialize();
 
             return window;
         }

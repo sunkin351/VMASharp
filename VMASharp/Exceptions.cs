@@ -14,7 +14,7 @@ namespace VMASharp
         {
         }
 
-        public VulkanResultException(string message, Exception innerException) : base(message, innerException)
+        public VulkanResultException(string message, Exception? innerException) : base(message, innerException)
         {
         }
 
@@ -35,7 +35,7 @@ namespace VMASharp
         {
         }
 
-        public AllocationException(string message, Exception innerException) : base (message, innerException)
+        public AllocationException(string message, Exception? innerException) : base (message, innerException)
         {
         }
 
